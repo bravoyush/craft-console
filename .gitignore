@@ -1,0 +1,22 @@
+# Binaries and build outputs
+bin/
+obj/
+*.exe
+*.dll
+*.pdb
+
+# User settings and temporary cache
+*.tmp
+fx_console_settings.json
+effectcraft-frame-*.png
+EffectCraft_Frame_*.png
+
+# Visual Studio / IDE
+.vs/
+*.user
+*.suo
+
+# OS generated files
+Thumbs.db
+Desktop.ini
+.DS_Store
