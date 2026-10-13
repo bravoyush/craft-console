@@ -20,3 +20,7 @@ EffectCraft_Frame_*.png
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+dist/
+*.zip
+

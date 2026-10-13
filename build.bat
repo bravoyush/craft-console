@@ -15,10 +15,11 @@ if not exist "%CSC%" (
 
 if not exist "bin" mkdir "bin"
 
-echo Compiling src\Launcher.cs ...
+echo Compiling src\Launcher.cs with embedded Splash Art...
 "%CSC%" /target:winexe ^
     /out:"bin\CraftConsole.exe" ^
     /win32icon:"assets\icon.ico" ^
+    /resource:"assets\splash.png",SplashArt ^
     /r:"%SystemRoot%\Microsoft.NET\Framework64\v4.0.30319\WPF\PresentationCore.dll" ^
     /r:"%SystemRoot%\Microsoft.NET\Framework64\v4.0.30319\WPF\PresentationFramework.dll" ^
     /r:"%SystemRoot%\Microsoft.NET\Framework64\v4.0.30319\WPF\WindowsBase.dll" ^
