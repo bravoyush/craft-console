@@ -6,20 +6,42 @@ Craft Console brings lightning-fast effect searching, preset browsing, command p
 
 ---
 
+## 🚀 How to Use Craft Console
+
+### 1. Starting the Launcher
+1. Download **`CraftConsole.exe`** from the [Latest Releases](https://github.com/bravoyush/craft-console/releases).
+2. Run `CraftConsole.exe`.
+3. The app starts and docks into your **Windows System Tray** with the EffectCraft icon.
+4. When EffectCraft launches, a sleek splash screen appears featuring the **Neon Unicorn Glass** artwork.
+
+### 2. Summoning the Console (`Ctrl + Space`)
+- Press **`Ctrl + Space`** anytime while inside EffectCraft (or After Effects).
+- The console capsule immediately spawns right at your mouse cursor.
+- Type any effect name (e.g. `Gaussian Blur`, `Curves`, `Glow`) and press **Enter** to instantly apply it to your selected layer!
+
+### 3. Smart Filtering
+Type **`@`** or **`#`** in the search bar to filter by category:
+- **`@fx `** — Filter effects only.
+- **`@preset `** — Filter animation and text animator presets.
+- **`@layer `** — Instant layer creation (`Solid`, `Null`, `Adjustment`, `Camera`, `Light`, `Shape`, `Text`).
+- **`@cmd `** — Search and execute EffectCraft engine commands (Composition, Edit, File, View, Window, Help).
+- **`@recent `** — Search and open recent `.ecproj` project files.
+- **`@sc `** or **`@screenshot `** — View your current session capture gallery with live thumbnails, comp names, timecodes, and timestamps.
+
+### 4. Header Action Buttons
+- **📷 Camera**: Takes a snapshot of the current composition frame and copies it directly to your Windows clipboard (`Ctrl + V`).
+- **🗂 Overlapping Screens**: Opens your `@sc` Session Capture Gallery (or presets if no captures exist).
+- **📥 Download Arrow**: Exports the active frame as a timestamped PNG file straight to your Windows Desktop.
+- **⚙ Gear Icon**: Opens the full **Craft Console & Studio Settings** customizer window.
+- **⎋ Escape**: Dismisses the console instantly.
+
+---
+
 ## ✨ Features
 
-- **🎯 Instant Cursor HUD**: Summons directly under your mouse cursor with `Ctrl + Space` (customizable) with zero workflow interruption.
-- **🔍 Smart Filtering**: Type `@` or `#` to filter categories dynamically:
-  - `@fx` — Browse 300+ effects with fuzzy-search.
-  - `@preset` — Browse animation and text animator presets.
-  - `@layer` — Instant layer creation (`Solid`, `Null`, `Adjustment`, `Camera`, `Light`, `Shape`, `Text`).
-  - `@cmd` — Search and run EffectCraft engine commands (Composition, Edit, File, View, Window, Help).
-  - `@recent` — Search and open recent `.ecproj` project files.
-  - `@sc` / `@screenshot` — Live session capture gallery with scaled visual thumbnails, composition name, timecode, resolution, and timestamps.
+- **🎯 Instant Cursor HUD**: Summons directly under your mouse cursor with zero workflow interruption.
 - **🎨 Automatic Theme Sync**: Dynamically matches EffectCraft's active appearance theme (**Dark**, **Darker**, and **Light** modes) as well as Windows system theme.
-- **📸 1-Click Frame Capture**:
-  - **📷 Snapshot**: Renders the current frame and copies the bitmap directly to your Windows clipboard (`Ctrl + V`).
-  - **📥 Export PNG**: Saves the current frame as a high-resolution PNG straight to your Desktop.
+- **📸 In-Memory Session Captures**: Keeps a lightweight rolling history of current session captures, automatically purged on restart (zero disk bloat).
 - **⚙️ Built-in Customizer**: Configure hotkeys, smart filter prefixes, splash screens, and visible categories.
 - **🔌 Companion ScriptUI Panel**: Includes a dockable `Craft Console.jsx` panel for running inside workspace docks.
 
@@ -43,16 +65,6 @@ The compiled executable will be placed in `bin\CraftConsole.exe`.
 
 ---
 
-## 🚀 Usage
-
-1. Launch `CraftConsole.exe`.
-2. Open **EffectCraft** (or After Effects).
-3. Press `Ctrl + Space` to summon the console capsule.
-4. Type an effect name (e.g. `Gaussian Blur`, `Curves`, `Glow`) and press **Enter** to apply!
-5. Use `@sc` to view session snapshots and click to copy them back to your clipboard.
-
----
-
 ## 📁 Repository Structure
 
 ```text
@@ -62,7 +74,11 @@ craft-console/
 ├── scriptui/
 │   └── Craft Console.jsx          # Dockable ExtendScript panel companion
 ├── assets/
-│   └── icon.ico                   # Application icon
+│   ├── icon.ico                   # Application icon
+│   └── splash.png                 # Default Neon Unicorn splash artwork
+├── splash/
+│   ├── art.png                    # Splash screen artwork
+│   └── splash.ini                 # Default configuration file
 ├── build.bat                      # Windows build script
 ├── .gitignore                     # Git ignore rules
 ├── LICENSE                        # MIT License
