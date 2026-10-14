@@ -6,39 +6,67 @@ Craft Console brings lightning-fast effect searching, preset browsing, command p
 
 ---
 
-## 🚀 How to Use Craft Console
+## 🚀 How to Install & Upgrade
 
 ### Option A: Portable Bundle (.zip)
-1. Download **`CraftConsole-v1.0.0-portable.zip`** from [Releases](https://github.com/bravoyush/craft-console/releases).
+1. Download **`CraftConsole-v1.0.1-portable.zip`** from [Releases](https://github.com/bravoyush/craft-console/releases).
 2. Extract the archive anywhere on your machine (or directly inside your `effectcraft` directory).
 3. Run `CraftConsole.exe`.
 
 ### Option B: Standalone Executable (.exe)
 1. Download **`CraftConsole.exe`** from [Releases](https://github.com/bravoyush/craft-console/releases).
 2. Run `CraftConsole.exe` from anywhere (Downloads, Desktop, etc.).
-3. **Initial Setup Wizard**:
-   - On first launch outside the EffectCraft folder, Craft Console automatically scans and locates your `effectcraft.exe` installation!
-   - Select or confirm the location, and optionally check **Create Desktop Shortcut**, **Create Start Menu Shortcut**, and **Install Neon Unicorn Splash Screen**.
-   - Click **Save & Launch** — your preferences are remembered permanently across launches.
+3. **Smart Installation**:
+   - Craft Console automatically detects your `effectcraft.exe` installation.
+   - It installs itself permanently into your EffectCraft folder (or `%LOCALAPPDATA%\CraftConsole\`), ensuring that **deleting your downloaded installer/zip from Downloads will never break your application**.
+   - Select your preferred shortcuts: **Unified 'EffectCraft (with Console)'**, **Craft Console Desktop**, and **Start Menu**.
+   - Click **Save & Launch** — your settings are remembered permanently across launches.
 
-### 🌟 Self-Contained Splash Screen
-- **Zero manual file downloading**: The **Neon Unicorn Glass** splash screen artwork is embedded directly into the executable as a resource and unpacks automatically into `splash/art.png` and `splash.ini`.
+---
+
+## 🔄 How to Upgrade from an Existing Version
+
+* **Upgrading the Portable Version**:
+  1. Download **`CraftConsole-v1.0.1-portable.zip`**.
+  2. Extract and replace `CraftConsole.exe` in your existing folder.
+  3. *Your existing favorites, custom themes, and configuration (`splash.ini` / `config.ini`) are completely preserved.*
+* **Upgrading the Installed Version**:
+  1. Download **`CraftConsole.exe`** v1.0.1.
+  2. Run it once and click **Save & Launch** to update the installed executable and refresh shortcuts.
+
+---
+
+## 🗑️ Clean Uninstallation
+
+Craft Console includes a built-in uninstaller:
+* **Via Settings**: Open Settings (⚙) ▸ scroll to *Installation & Integration* ▸ click **Uninstall Craft Console...**
+* **Via Command Line**: Run `CraftConsole.exe --uninstall`
+* **Interactive Options**:
+  - Choose to remove shortcuts and integration while **keeping your custom favorites, presets, and splash themes**, or
+  - Choose complete removal to wipe all data cleanly.
 
 ---
 
 ## 🎮 Summoning the Console (Ctrl + Space)
 - Press **`Ctrl + Space`** anytime while inside EffectCraft (or After Effects).
 - The console capsule immediately spawns right at your mouse cursor.
-- Type any effect name (e.g. `Gaussian Blur`, `Curves`, `Glow`) and press **Enter** to instantly apply it to your selected layer!
+- Type any effect name (e.g. `Gaussian Blur`, `Curves`, `Roughen Edges`) and press **Enter** to instantly apply it to your selected layer!
 
 ### 🔍 Smart Filtering
 Type **`@`** or **`#`** in the search bar to filter by category:
 - **`@fx `** — Filter effects only.
 - **`@preset `** — Filter animation and text animator presets.
+- **`@fav `** or **`*`** — Show your saved favorites.
 - **`@layer `** — Instant layer creation (`Solid`, `Null`, `Adjustment`, `Camera`, `Light`, `Shape`, `Text`).
 - **`@cmd `** — Search and execute EffectCraft engine commands (Composition, Edit, File, View, Window, Help).
 - **`@recent `** — Search and open recent `.ecproj` project files.
 - **`@sc `** or **`@screenshot `** — View your current session capture gallery with live thumbnails, comp names, timecodes, and timestamps.
+
+### ⭐ Favorites System
+- Star/favorite any effect, preset, or command for instant access.
+- Filter by favorites using `/fav` or typing `*`.
+- Customize your favorite toggle keybinding in Settings (default: `Ctrl + F`).
+- Instant $O(N)$ priority partitioning puts your favorites at the top of search results without keystroke lag.
 
 ### 📸 Header Actions
 - **📷 Camera**: Takes a snapshot of the current composition frame and copies it directly to your Windows clipboard (`Ctrl + V`).
@@ -49,15 +77,27 @@ Type **`@`** or **`#`** in the search bar to filter by category:
 
 ---
 
-## ✨ Features
+## ✨ Release Highlights & Fixes (v1.0.1)
 
-- **🎯 Instant Cursor HUD**: Summons directly under your mouse cursor with zero workflow interruption.
-- **📦 Self-Contained Embedded Artwork**: Zero extra assets to manually copy or download.
-- **🛠 Initial Setup & Shortcut Creator**: Auto-detects EffectCraft, installs desktop shortcuts, and registers system paths.
-- **🎨 Automatic Theme Sync**: Dynamically matches EffectCraft active appearance theme (**Dark**, **Darker**, and **Light** modes) as well as Windows system theme.
-- **📸 In-Memory Session Captures**: Lightweight rolling history of session captures, automatically purged on restart (zero disk bloat).
-- **⚙️ Built-in Customizer**: Configure hotkeys, smart filter prefixes, splash screens, and visible categories.
-- **🔌 Companion ScriptUI Panel**: Includes a dockable `Craft Console.jsx` panel for running inside workspace docks.
+- **Fixed "Rough Edges" Error ([Issue #1](https://github.com/bravoyush/craft-console/issues/1))**:
+  - EffectCraft's engine registers this effect under its official name **`"Roughen Edges"`** (`ec.stylize.roughenedges`).
+  - Corrected display name to `"Roughen Edges"` and added `"Rough Edges"` as an alias search keyword.
+- **Corrected 10 Mismatched Engine Effect IDs**:
+  - Updated *Levels (Individual Controls)* (`levelsic`), *Polar Coordinates* (`polar`), *Linear Color Key*, *Color Difference Key*, *Color Range*, *Difference Matte*, *Extract*, *Key Cleaner*, *Spill Suppressor*, and *Strobe Light* (`strobe`).
+- **Engine Parity & Error Toasts**:
+  - `ApplySelectedItem` now passes canonical `ec.*` IDs directly to `effect.apply`.
+  - Engine warnings (e.g., missing active layer/composition) now surface as clear visual toasts rather than failing silently.
+  - Live menu sync (`ui.menu.list`) extracts genuine engine IDs from `params.effect`.
+- **Typing Lag & Performance**:
+  - Background asynchronous menu caching on startup eliminates synchronous TCP stalls during search.
+  - Replaced sorting bottlenecks with fast memory partitioning.
+- **Recent Projects Auto-Switching**:
+  - Opening recent projects now automatically dismisses the Home screen overlay (`ui.set { "home": false }`), taking you straight to your workspace.
+- **Permanent Installation & Clean Uninstaller**:
+  - Self-installs to a permanent directory so deleting downloads won't break shortcuts.
+  - Added full `--uninstall` support with options to preserve or wipe custom themes and favorites.
+- **Unified Shortcut**:
+  - Launch EffectCraft and Craft Console together with a single desktop icon; both close together cleanly on exit.
 
 ---
 
@@ -87,7 +127,7 @@ craft-console/
 │   ├── art.png                    # Splash screen artwork
 │   └── splash.ini                 # Default configuration file
 ├── dist/
-│   └── CraftConsole-v1.0.0-portable.zip # Portable distribution package
+│   └── CraftConsole-v1.0.1-portable.zip # Portable distribution package
 ├── build.bat                      # Windows build script
 ├── .gitignore                     # Git ignore rules
 ├── LICENSE                        # MIT License

@@ -103,6 +103,7 @@ namespace EffectCraftLauncher
         private const uint MOD_NOREPEAT = 0x4000;
         public const int VK_SPACE = 0x20;
         public const int CONTROL_PORT = 9877;
+        public const string VERSION = "1.0.1";
         public const string ARTCRAFT_MARK_PATH = "M 104.28,49.49 L 81.55,0 H 50.32 L 47.15,4.76 L 14.75,53.63 L 0,75.85 L 21.55,97.4 L 85.34,60.46 L 102.33,97.5 L 116.34,75.76 L 104.28,49.49 Z M 32.89,65.66 L 65.31,16.79 L 76.22,40.56 L 32.89,65.66 Z";
 
         private static IntPtr _kbHookId = IntPtr.Zero;
@@ -117,6 +118,30 @@ namespace EffectCraftLauncher
         public static Application _wpfApp;
         public static string AppDir;
         public static SplashConfig CurrentConfig = null;
+        public static bool MatchesKeyCombo(System.Windows.Input.KeyEventArgs e, string shortcutStr)
+        {
+            if (string.IsNullOrEmpty(shortcutStr)) return false;
+            string[] parts = shortcutStr.Split(new char[] { '+', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            bool reqCtrl = false, reqAlt = false, reqShift = false;
+            string reqKey = "";
+            foreach (var p in parts)
+            {
+                if (p.Equals("Ctrl", StringComparison.OrdinalIgnoreCase) || p.Equals("Control", StringComparison.OrdinalIgnoreCase)) reqCtrl = true;
+                else if (p.Equals("Alt", StringComparison.OrdinalIgnoreCase)) reqAlt = true;
+                else if (p.Equals("Shift", StringComparison.OrdinalIgnoreCase)) reqShift = true;
+                else reqKey = p;
+            }
+
+            bool hasCtrl = (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) != 0;
+            bool hasAlt = (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Alt) != 0;
+            bool hasShift = (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Shift) != 0;
+
+            if (reqCtrl != hasCtrl || reqAlt != hasAlt || reqShift != hasShift) return false;
+
+            System.Windows.Input.Key k = (e.Key == System.Windows.Input.Key.System) ? e.SystemKey : e.Key;
+            return string.Equals(k.ToString(), reqKey, StringComparison.OrdinalIgnoreCase);
+        }
+
         public static string EffectCraftExePath = null;
 
         public static string GetConfigIniPath()
@@ -355,7 +380,7 @@ namespace EffectCraftLauncher
             }
         }
 
-        public static void CreateShortcut(string shortcutPath, string targetExePath, string description)
+        public static void CreateShortcut(string shortcutPath, string targetExePath, string description, string iconLocation = null)
         {
             try
             {
@@ -371,8 +396,9 @@ namespace EffectCraftLauncher
                     BindingFlags.SetProperty, null, shortcut, new object[] { Path.GetDirectoryName(targetExePath) });
                 shortcutType.InvokeMember("Description",
                     BindingFlags.SetProperty, null, shortcut, new object[] { description });
+                string icon = !string.IsNullOrEmpty(iconLocation) ? iconLocation : (targetExePath + ",0");
                 shortcutType.InvokeMember("IconLocation",
-                    BindingFlags.SetProperty, null, shortcut, new object[] { targetExePath + ",0" });
+                    BindingFlags.SetProperty, null, shortcut, new object[] { icon });
                 shortcutType.InvokeMember("Save",
                     BindingFlags.InvokeMethod, null, shortcut, null);
                 Log("Created shortcut: " + shortcutPath + " -> " + targetExePath);
@@ -380,6 +406,102 @@ namespace EffectCraftLauncher
             catch (Exception ex)
             {
                 Log("CreateShortcut error: " + ex.Message);
+            }
+        }
+
+        public static string EnsureInstalled(string ecExePath)
+        {
+            string ownExe = Process.GetCurrentProcess().MainModule.FileName;
+            string targetExe = ownExe;
+            try
+            {
+                string ecDir = Path.GetDirectoryName(ecExePath);
+                if (!string.IsNullOrEmpty(ecDir) && Directory.Exists(ecDir))
+                {
+                    string ecTarget = Path.Combine(ecDir, "CraftConsole.exe");
+                    if (!string.Equals(ownExe, ecTarget, StringComparison.OrdinalIgnoreCase))
+                    {
+                        File.Copy(ownExe, ecTarget, true);
+                        targetExe = ecTarget;
+                        Log("Installed CraftConsole to EffectCraft dir: " + ecTarget);
+                        return targetExe;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log("Failed to copy to EffectCraft dir: " + ex.Message + "; falling back to LocalAppData");
+            }
+
+            try
+            {
+                string localApp = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CraftConsole");
+                if (!Directory.Exists(localApp)) Directory.CreateDirectory(localApp);
+                string localTarget = Path.Combine(localApp, "CraftConsole.exe");
+                if (!string.Equals(ownExe, localTarget, StringComparison.OrdinalIgnoreCase))
+                {
+                    File.Copy(ownExe, localTarget, true);
+                    targetExe = localTarget;
+                    Log("Installed CraftConsole to LocalAppData: " + localTarget);
+                    return targetExe;
+                }
+            }
+            catch (Exception ex)
+            {
+                Log("Failed to copy to LocalAppData: " + ex.Message);
+            }
+
+            return targetExe;
+        }
+
+        public static void RunUninstaller()
+        {
+            var res = MessageBox.Show(
+                "Are you sure you want to remove Craft Console shortcuts and integration from this computer?\n\n" +
+                "• Click 'Yes' to remove shortcuts and wipe settings.\n" +
+                "• Click 'No' to remove shortcuts but KEEP your custom favorites and themes.\n" +
+                "• Click 'Cancel' to abort.",
+                "Uninstall Craft Console v" + VERSION,
+                MessageBoxButtons.YesNoCancel,
+                MessageBoxIcon.Question);
+
+            if (res == DialogResult.Cancel) return;
+
+            bool keepSettings = (res == DialogResult.No);
+
+            try
+            {
+                string desk = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+                string deskLnk1 = Path.Combine(desk, "Craft Console.lnk");
+                string deskLnk2 = Path.Combine(desk, "EffectCraft (with Console).lnk");
+                if (File.Exists(deskLnk1)) File.Delete(deskLnk1);
+                if (File.Exists(deskLnk2)) File.Delete(deskLnk2);
+
+                string progs = Environment.GetFolderPath(Environment.SpecialFolder.Programs);
+                string progLnk1 = Path.Combine(progs, "Craft Console.lnk");
+                string progLnk2 = Path.Combine(progs, "EffectCraft (with Console).lnk");
+                if (File.Exists(progLnk1)) File.Delete(progLnk1);
+                if (File.Exists(progLnk2)) File.Delete(progLnk2);
+
+                if (!keepSettings)
+                {
+                    string appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "EffectCraft");
+                    string cfgFile = Path.Combine(appData, "config.ini");
+                    string splashFile = Path.Combine(appData, "splash.ini");
+                    if (File.Exists(cfgFile)) File.Delete(cfgFile);
+                    if (File.Exists(splashFile)) File.Delete(splashFile);
+                }
+
+                MessageBox.Show(
+                    "Craft Console integration and shortcuts have been successfully removed." +
+                    (keepSettings ? "\n\n(Your settings and favorites were preserved)." : ""),
+                    "Uninstall Complete",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error during uninstall: " + ex.Message, "Uninstall Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -480,14 +602,25 @@ namespace EffectCraftLauncher
             catch { }
 
             bool forceSetup = false;
+            bool doUninstall = false;
             foreach (string a in args)
             {
                 if (a.Equals("--setup", StringComparison.OrdinalIgnoreCase) || a.Equals("/setup", StringComparison.OrdinalIgnoreCase))
                 {
                     forceSetup = true;
-                    break;
+                }
+                else if (a.Equals("--uninstall", StringComparison.OrdinalIgnoreCase) || a.Equals("/uninstall", StringComparison.OrdinalIgnoreCase))
+                {
+                    doUninstall = true;
                 }
             }
+
+            if (doUninstall)
+            {
+                RunUninstaller();
+                return;
+            }
+
             if ((GetAsyncKeyState(0x10) & 0x8000) != 0) // Shift key
             {
                 forceSetup = true;
@@ -623,9 +756,16 @@ namespace EffectCraftLauncher
                     _consoleWindow = new FXConsoleWindow();
                     Log("FXConsoleWindow instantiated");
 
-                    _splashWindow = new SplashWindow(splashCfg);
-                    _splashWindow.Show();
-                    Log("SplashWindow shown");
+                    if (!splashCfg.InstantLaunch)
+                    {
+                        _splashWindow = new SplashWindow(splashCfg);
+                        _splashWindow.Show();
+                        Log("SplashWindow shown");
+                    }
+                    else
+                    {
+                        Log("InstantLaunch enabled — skipping splash screen completely");
+                    }
 
                     StartEffectCraftAndMonitor(effectcraftExe, AppDir, args, splashCfg);
                 }
@@ -684,10 +824,24 @@ namespace EffectCraftLauncher
                     }
                     catch { }
 
+                    string startupArg = "";
+                    if (string.Equals(splashCfg.StartupTab, "Home", StringComparison.OrdinalIgnoreCase))
+                    {
+                        startupArg = " --home";
+                    }
+                    else if (string.Equals(splashCfg.StartupTab, "Demo", StringComparison.OrdinalIgnoreCase))
+                    {
+                        startupArg = " --demo";
+                    }
+                    else if (string.Equals(splashCfg.StartupTab, "Empty", StringComparison.OrdinalIgnoreCase) || string.Equals(splashCfg.StartupTab, "New", StringComparison.OrdinalIgnoreCase))
+                    {
+                        startupArg = " --empty";
+                    }
+
                     var psi = new ProcessStartInfo
                     {
                         FileName = effectcraftExe,
-                        Arguments = "--control " + CONTROL_PORT + (args.Length > 0 ? " " + string.Join(" ", args) : ""),
+                        Arguments = "--control " + CONTROL_PORT + startupArg + (args.Length > 0 ? " " + string.Join(" ", args) : ""),
                         WorkingDirectory = Path.GetDirectoryName(effectcraftExe),
                         UseShellExecute = true
                     };
@@ -718,14 +872,34 @@ namespace EffectCraftLauncher
                     catch { }
                 }
 
-                int minWaitMs = (int)(Math.Max(1.0, splashCfg.SplashDuration) * 1000.0);
+                if (splashCfg.InstantLaunch)
+                {
+                    int quickChecks = 0;
+                    while (quickChecks++ < 30)
+                    {
+                        if (_childProc != null)
+                        {
+                            _childProc.Refresh();
+                            if (_childProc.MainWindowHandle != IntPtr.Zero)
+                            {
+                                SetForegroundWindow(_childProc.MainWindowHandle);
+                                break;
+                            }
+                        }
+                        Thread.Sleep(40);
+                    }
+                    try { SendTcpCommand("{\"id\":99,\"method\":\"ui.focus\",\"params\":{}}"); } catch { }
+                    return;
+                }
+
+                int minWaitMs = (int)(Math.Max(0.2, splashCfg.SplashDuration) * 1000.0);
                 long startTick = (long)Environment.TickCount & 0x7FFFFFFFL;
                 int checks = 0;
                 bool portReady = false;
 
                 while (checks < 60)
                 {
-                    Thread.Sleep(200);
+                    Thread.Sleep(80);
                     checks++;
                     if (!portReady)
                     {
@@ -734,11 +908,11 @@ namespace EffectCraftLauncher
                             using (var test = new TcpClient())
                             {
                                 var ar = test.BeginConnect("127.0.0.1", CONTROL_PORT, null, null);
-                                if (ar.AsyncWaitHandle.WaitOne(120))
+                                if (ar.AsyncWaitHandle.WaitOne(80))
                                 {
                                     test.EndConnect(ar);
                                     portReady = true;
-                                    Log("EffectCraft control port ready after " + (checks * 200) + "ms");
+                                    Log("EffectCraft control port ready after " + (checks * 80) + "ms");
                                 }
                             }
                         }
@@ -746,7 +920,13 @@ namespace EffectCraftLauncher
                     }
 
                     long elapsed = ((long)Environment.TickCount & 0x7FFFFFFFL) - startTick;
-                    if (portReady && elapsed >= minWaitMs)
+                    bool windowReady = false;
+                    if (_childProc != null)
+                    {
+                        try { _childProc.Refresh(); windowReady = (_childProc.MainWindowHandle != IntPtr.Zero); } catch { }
+                    }
+
+                    if ((portReady || windowReady) && elapsed >= minWaitMs)
                     {
                         break;
                     }
@@ -953,6 +1133,44 @@ namespace EffectCraftLauncher
         public bool ShowLoadingText = true;
         public bool ShowFooter = true;
         public double SplashDuration = 3.5;
+        public bool ShowSplashScreen = true;
+        public bool InstantLaunch
+        {
+            get { return !ShowSplashScreen; }
+            set { ShowSplashScreen = !value; }
+        }
+        public string StartupTab = "Home"; // "Home", "Empty", "Demo"
+        public bool ShowFavoritesOnOpen = true;
+        public string PrefixFavorites = "@fav";
+        public string FavoriteShortcut = "Ctrl + D";
+        public List<string> Favorites = new List<string> { "Fast Box Blur", "Curves", "Glow", "Drop Shadow", "Hue/Saturation", "Solid" };
+
+        public bool IsFavorite(string name, string id)
+        {
+            if (Favorites == null) return false;
+            foreach (var f in Favorites)
+            {
+                if (string.Equals(f, name, StringComparison.OrdinalIgnoreCase) ||
+                    (!string.IsNullOrEmpty(id) && string.Equals(f, id, StringComparison.OrdinalIgnoreCase)))
+                    return true;
+            }
+            return false;
+        }
+
+        public bool ToggleFavorite(string name)
+        {
+            if (Favorites == null) Favorites = new List<string>();
+            for (int i = 0; i < Favorites.Count; i++)
+            {
+                if (string.Equals(Favorites[i], name, StringComparison.OrdinalIgnoreCase))
+                {
+                    Favorites.RemoveAt(i);
+                    return false;
+                }
+            }
+            Favorites.Add(name);
+            return true;
+        }
 
         // EC Console Catalog Sections
         public bool ConsoleShowEffects = true;
@@ -1076,6 +1294,25 @@ namespace EffectCraftLauncher
                         else if (key == "titlefontsize") { double v; if (double.TryParse(val, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out v)) cfg.TitleFontSize = v; }
                         else if (key == "subtitlefontsize") { double v; if (double.TryParse(val, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out v)) cfg.SubtitleFontSize = v; }
                         else if (key == "artistfontsize") { double v; if (double.TryParse(val, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out v)) cfg.ArtistFontSize = v; }
+                        else if (key == "showsplashscreen" || key == "showsplash") { bool b; if (bool.TryParse(val, out b)) cfg.ShowSplashScreen = b; }
+                        else if (key == "instantlaunch") { bool b; if (bool.TryParse(val, out b)) cfg.ShowSplashScreen = !b; }
+                        else if (key == "startuptab") { if (!string.IsNullOrEmpty(val)) cfg.StartupTab = val; }
+                        else if (key == "showfavoritesonopen") { bool b; if (bool.TryParse(val, out b)) cfg.ShowFavoritesOnOpen = b; }
+                        else if (key == "prefixfavorites") { if (!string.IsNullOrEmpty(val)) cfg.PrefixFavorites = val; }
+                        else if (key == "favoriteshortcut") { if (!string.IsNullOrEmpty(val)) cfg.FavoriteShortcut = val; }
+                        else if (key == "favorites")
+                        {
+                            cfg.Favorites.Clear();
+                            if (!string.IsNullOrEmpty(val))
+                            {
+                                string[] items = val.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                                foreach (var itm in items)
+                                {
+                                    string t = itm.Trim();
+                                    if (!string.IsNullOrEmpty(t) && !cfg.Favorites.Contains(t)) cfg.Favorites.Add(t);
+                                }
+                            }
+                        }
                         else if (key == "cornerradius") { double v; if (double.TryParse(val, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out v)) cfg.CornerRadius = v; }
                         else if (key == "showloadingbar") { bool b; if (bool.TryParse(val, out b)) cfg.ShowLoadingBar = b; }
                         else if (key == "showloadingtext") { bool b; if (bool.TryParse(val, out b)) cfg.ShowLoadingText = b; }
@@ -1152,6 +1389,12 @@ namespace EffectCraftLauncher
                 sb.AppendLine("ShowLoadingText = " + ShowLoadingText);
                 sb.AppendLine("ShowFooter = " + ShowFooter);
                 sb.AppendLine("SplashDuration = " + SplashDuration.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                sb.AppendLine("ShowSplashScreen = " + ShowSplashScreen);
+                sb.AppendLine("StartupTab = " + StartupTab);
+                sb.AppendLine("ShowFavoritesOnOpen = " + ShowFavoritesOnOpen);
+                sb.AppendLine("PrefixFavorites = " + PrefixFavorites);
+                sb.AppendLine("FavoriteShortcut = " + FavoriteShortcut);
+                sb.AppendLine("Favorites = " + string.Join(",", (Favorites != null ? Favorites.ToArray() : new string[0])));
                 sb.AppendLine("ConsoleShowEffects = " + ConsoleShowEffects);
                 sb.AppendLine("ConsoleShowPresets = " + ConsoleShowPresets);
                 sb.AppendLine("ConsoleShowLayers = " + ConsoleShowLayers);
@@ -1490,6 +1733,10 @@ namespace EffectCraftLauncher
         public ConsoleItemKind Kind { get; set; }
         public string Extra { get; set; }
         public CaptureItem Capture { get; set; }
+        public string LowerName { get; set; }
+        public string LowerCategory { get; set; }
+        public string Keywords { get; set; }
+        public string LowerKeywords { get; set; }
     }
 
     public class DisplayRow
@@ -1535,6 +1782,48 @@ namespace EffectCraftLauncher
 
         private List<EffectItem> _catalog = new List<EffectItem>();
         private List<EffectItem> _recentProjects = new List<EffectItem>();
+        private DateTime _lastPrefsMtime = DateTime.MinValue;
+        private HashSet<string> _favSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private System.Windows.Threading.DispatcherTimer _searchDebounceTimer;
+
+        private static readonly SolidColorBrush _brushFavStar = CreateFrozenBrush(Color.FromRgb(255, 215, 0));
+        private static readonly SolidColorBrush _brushUnfavStar = CreateFrozenBrush(Color.FromRgb(95, 95, 105));
+        private static readonly SolidColorBrush _brushTextDark = CreateFrozenBrush(Color.FromRgb(225, 225, 225));
+        private static readonly SolidColorBrush _brushTextLight = CreateFrozenBrush(Color.FromRgb(28, 28, 30));
+        private static readonly SolidColorBrush _brushExtraDark = CreateFrozenBrush(Color.FromRgb(125, 125, 130));
+        private static readonly SolidColorBrush _brushExtraLight = CreateFrozenBrush(Color.FromRgb(100, 100, 108));
+        private static readonly SolidColorBrush _brushSelDark = CreateFrozenBrush(Color.FromRgb(0, 122, 204));
+        private static readonly SolidColorBrush _brushSelLight = CreateFrozenBrush(Color.FromRgb(0, 120, 215));
+        private static readonly SolidColorBrush _brushSelExtra = CreateFrozenBrush(Color.FromRgb(225, 240, 255));
+        private static readonly FontFamily _fontSegoe = new FontFamily("Segoe UI");
+
+        private static SolidColorBrush CreateFrozenBrush(Color c)
+        {
+            var b = new SolidColorBrush(c);
+            b.Freeze();
+            return b;
+        }
+
+        private void RefreshFavoritesCache()
+        {
+            _favSet.Clear();
+            var cfg = Program.CurrentConfig ?? new SplashConfig();
+            if (cfg.Favorites != null)
+            {
+                foreach (var f in cfg.Favorites)
+                {
+                    if (!string.IsNullOrEmpty(f)) _favSet.Add(f.Trim());
+                }
+            }
+        }
+
+        private bool IsFavoriteCached(string name, string id)
+        {
+            if (_favSet == null || _favSet.Count == 0) return false;
+            if (!string.IsNullOrEmpty(name) && _favSet.Contains(name)) return true;
+            if (!string.IsNullOrEmpty(id) && _favSet.Contains(id)) return true;
+            return false;
+        }
         private List<DisplayRow> _currentRows = new List<DisplayRow>();
         private int _selectedIndex = -1;
         private IntPtr _lastFgHwnd = IntPtr.Zero;
@@ -1552,7 +1841,18 @@ namespace EffectCraftLauncher
             }
 
             InitializeCatalog();
+            RefreshFavoritesCache();
+            RefreshRecentProjects();
             SyncLiveCommandsFromEngine();
+
+            _searchDebounceTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(30)
+            };
+            _searchDebounceTimer.Tick += delegate {
+                _searchDebounceTimer.Stop();
+                PerformSearch();
+            };
 
             this.Title = "EC Console";
             this.WindowStyle = WindowStyle.None;
@@ -1944,40 +2244,49 @@ namespace EffectCraftLauncher
 
         private void RefreshRecentProjects()
         {
-            _recentProjects.Clear();
             try
             {
                 string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
                 string prefsPath = Path.Combine(appData, "EffectCraft", "prefs.json");
-                if (File.Exists(prefsPath))
+                if (!File.Exists(prefsPath)) return;
+
+                DateTime mtime = File.GetLastWriteTimeUtc(prefsPath);
+                if (mtime == _lastPrefsMtime && _recentProjects.Count > 0)
                 {
-                    string content = File.ReadAllText(prefsPath);
-                    int idx = content.IndexOf("\"recentProjects\"");
-                    if (idx < 0) idx = content.IndexOf("\"recent_projects\"");
-                    if (idx >= 0)
+                    return; // Cache is already fresh; zero disk I/O!
+                }
+                _lastPrefsMtime = mtime;
+
+                string content = File.ReadAllText(prefsPath);
+                int idx = content.IndexOf("\"recentProjects\"");
+                if (idx < 0) idx = content.IndexOf("\"recent_projects\"");
+                if (idx >= 0)
+                {
+                    int start = content.IndexOf('[', idx);
+                    int end = content.IndexOf(']', start);
+                    if (start >= 0 && end > start)
                     {
-                        int start = content.IndexOf('[', idx);
-                        int end = content.IndexOf(']', start);
-                        if (start >= 0 && end > start)
+                        var updatedList = new List<EffectItem>();
+                        string arr = content.Substring(start + 1, end - start - 1);
+                        string[] items = arr.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                        foreach (string raw in items)
                         {
-                            string arr = content.Substring(start + 1, end - start - 1);
-                            string[] items = arr.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
-                            foreach (string raw in items)
+                            string p = raw.Trim().Trim('"', ' ', '\r', '\n').Replace("\\\\", "\\");
+                            if (!string.IsNullOrEmpty(p) && File.Exists(p))
                             {
-                                string p = raw.Trim().Trim('"', ' ', '\r', '\n').Replace("\\\\", "\\");
-                                if (!string.IsNullOrEmpty(p) && File.Exists(p))
-                                {
-                                    string filename = Path.GetFileName(p);
-                                    _recentProjects.Add(new EffectItem {
-                                        Name = filename,
-                                        Id = p,
-                                        Category = "Recent Projects",
-                                        Kind = ConsoleItemKind.Project,
-                                        Extra = p
-                                    });
-                                }
+                                string filename = Path.GetFileName(p);
+                                updatedList.Add(new EffectItem {
+                                    Name = filename,
+                                    Id = p,
+                                    Category = "Recent Projects",
+                                    Kind = ConsoleItemKind.Project,
+                                    Extra = p,
+                                    LowerName = (filename ?? "").ToLowerInvariant(),
+                                    LowerCategory = "recent projects"
+                                });
                             }
                         }
+                        _recentProjects = updatedList;
                     }
                 }
             }
@@ -2057,6 +2366,12 @@ namespace EffectCraftLauncher
                 Keyboard.Focus(_searchBox);
                 _searchBox.SelectAll();
                 _isOpening = false;
+
+                var cfg = Program.CurrentConfig ?? new SplashConfig();
+                if (string.IsNullOrEmpty(_searchBox.Text.Trim()) && cfg.ShowFavoritesOnOpen && cfg.Favorites != null && cfg.Favorites.Count > 0)
+                {
+                    ShowFavoritesList();
+                }
             }));
         }
 
@@ -2086,9 +2401,37 @@ namespace EffectCraftLauncher
 
         private void OnSearchTextChanged(object sender, TextChangedEventArgs e)
         {
+            string q = _searchBox.Text.Trim();
+            if (string.IsNullOrEmpty(q))
+            {
+                if (_searchDebounceTimer != null) _searchDebounceTimer.Stop();
+                PerformSearch();
+                return;
+            }
+
+            if (_searchDebounceTimer != null)
+            {
+                _searchDebounceTimer.Stop();
+                _searchDebounceTimer.Start();
+            }
+            else
+            {
+                PerformSearch();
+            }
+        }
+
+        private void PerformSearch()
+        {
             string query = _searchBox.Text.Trim();
             if (string.IsNullOrEmpty(query))
             {
+                var cfg = Program.CurrentConfig ?? new SplashConfig();
+                if (cfg.ShowFavoritesOnOpen && cfg.Favorites != null && cfg.Favorites.Count > 0)
+                {
+                    ShowFavoritesList();
+                    return;
+                }
+
                 _divider.Visibility = Visibility.Collapsed;
                 _scrollViewer.Visibility = Visibility.Collapsed;
                 _resultsStack.Children.Clear();
@@ -2097,6 +2440,57 @@ namespace EffectCraftLauncher
                 return;
             }
             UpdateFilter(query);
+        }
+
+        public void ShowFavoritesList()
+        {
+            _resultsStack.Children.Clear();
+            _currentRows.Clear();
+            _selectedIndex = -1;
+
+            var cfg = Program.CurrentConfig ?? new SplashConfig();
+            if (cfg.Favorites == null || cfg.Favorites.Count == 0)
+            {
+                _divider.Visibility = Visibility.Collapsed;
+                _scrollViewer.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            var favMatches = new List<EffectItem>();
+            foreach (var favName in cfg.Favorites)
+            {
+                var found = _catalog.Find(x => string.Equals(x.Name, favName, StringComparison.OrdinalIgnoreCase) ||
+                                               string.Equals(x.Id, favName, StringComparison.OrdinalIgnoreCase));
+                if (found != null && !favMatches.Contains(found))
+                {
+                    favMatches.Add(found);
+                }
+            }
+
+            if (favMatches.Count > 0)
+            {
+                AddCategoryHeader("★ Favorites & Quick Access (Enter to Apply • Click ★ or Ctrl+D to unpin)", Color.FromRgb(255, 215, 0));
+                foreach (var fav in favMatches)
+                {
+                    AddItemRow(fav);
+                }
+
+                _divider.Visibility = Visibility.Visible;
+                _scrollViewer.Visibility = Visibility.Visible;
+                for (int i = 0; i < _currentRows.Count; i++)
+                {
+                    if (!_currentRows[i].IsHeader)
+                    {
+                        SetSelectedIndex(i);
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                _divider.Visibility = Visibility.Collapsed;
+                _scrollViewer.Visibility = Visibility.Collapsed;
+            }
         }
 
         private List<SmartFilterDef> GetDynamicFilters(string triggerChar)
@@ -2114,6 +2508,23 @@ namespace EffectCraftLauncher
                 }
                 return trig + defaultSuffix;
             };
+
+            // 0. Pinned Favorites Filter (@fav)
+            int favCount = 0;
+            foreach (var itm in _catalog)
+            {
+                if (cfg.IsFavorite(itm.Name, itm.Id)) favCount++;
+            }
+            if (favCount > 0)
+            {
+                list.Add(new SmartFilterDef {
+                    Prefix = formatPrefix(cfg.PrefixFavorites, "fav"),
+                    Name = "Favorites",
+                    Kind = ConsoleItemKind.Filter,
+                    Count = favCount,
+                    Description = "Browse pinned & favorite tools (" + favCount + ")"
+                });
+            }
 
             // 1. Recent Projects (dynamically included only if enabled and projects exist!)
             if (cfg.ConsoleShowRecent && _recentProjects.Count > 0)
@@ -2335,6 +2746,41 @@ namespace EffectCraftLauncher
 
             bool isOnlyTrigger = (query == "@" || query == "#");
 
+            string cleanLower = cleanQuery.ToLowerInvariant();
+
+            if (activeFilter != null && (activeFilter.Prefix.EndsWith("fav", StringComparison.OrdinalIgnoreCase) || activeFilter.Name == "Favorites"))
+            {
+                var favFiltered = new List<EffectItem>();
+                foreach (var itm in _catalog)
+                {
+                    if (IsFavoriteCached(itm.Name, itm.Id))
+                    {
+                        if (string.IsNullOrEmpty(cleanLower) ||
+                            (itm.LowerName != null && itm.LowerName.IndexOf(cleanLower, StringComparison.Ordinal) >= 0) ||
+                            (itm.LowerCategory != null && itm.LowerCategory.IndexOf(cleanLower, StringComparison.Ordinal) >= 0))
+                        {
+                            favFiltered.Add(itm);
+                        }
+                    }
+                }
+
+                if (favFiltered.Count > 0)
+                {
+                    AddCategoryHeader("★ Favorites (" + favFiltered.Count + ")", Color.FromRgb(255, 215, 0));
+                    foreach (var fv in favFiltered)
+                    {
+                        AddItemRow(fv);
+                    }
+                    _divider.Visibility = Visibility.Visible;
+                    _scrollViewer.Visibility = Visibility.Visible;
+                    for (int i = 0; i < _currentRows.Count; i++)
+                    {
+                        if (!_currentRows[i].IsHeader) { SetSelectedIndex(i); break; }
+                    }
+                    return;
+                }
+            }
+
             if (!isOnlyTrigger)
             {
                 // 0. Session Captures (Screenshots)
@@ -2344,7 +2790,7 @@ namespace EffectCraftLauncher
                     {
                         foreach (var cap in _sessionCaptures)
                         {
-                            if (string.IsNullOrEmpty(cleanQuery) ||
+                            if (string.IsNullOrEmpty(cleanLower) ||
                                 cap.CompName.IndexOf(cleanQuery, StringComparison.OrdinalIgnoreCase) >= 0 ||
                                 cap.ProjectName.IndexOf(cleanQuery, StringComparison.OrdinalIgnoreCase) >= 0)
                             {
@@ -2363,15 +2809,15 @@ namespace EffectCraftLauncher
                     }
                 }
 
-                // 1. Recent Projects
+                // 1. Recent Projects (Fast cached lookup)
                 bool allowRecent = cfg.ConsoleShowRecent && (activeFilter == null || activeFilter.Kind == ConsoleItemKind.Project);
                 if (allowRecent)
                 {
                     foreach (var proj in _recentProjects)
                     {
-                        if (string.IsNullOrEmpty(cleanQuery) ||
-                            proj.Name.IndexOf(cleanQuery, StringComparison.OrdinalIgnoreCase) >= 0 ||
-                            proj.Id.IndexOf(cleanQuery, StringComparison.OrdinalIgnoreCase) >= 0)
+                        if (string.IsNullOrEmpty(cleanLower) ||
+                            (proj.LowerName != null && proj.LowerName.IndexOf(cleanLower, StringComparison.Ordinal) >= 0) ||
+                            (proj.Id != null && proj.Id.IndexOf(cleanQuery, StringComparison.OrdinalIgnoreCase) >= 0))
                         {
                             matchRecent.Add(proj);
                         }
@@ -2383,9 +2829,10 @@ namespace EffectCraftLauncher
                 {
                     foreach (var item in _catalog)
                     {
-                        bool matchesQuery = string.IsNullOrEmpty(cleanQuery) ||
-                            item.Name.IndexOf(cleanQuery, StringComparison.OrdinalIgnoreCase) >= 0 ||
-                            item.Category.IndexOf(cleanQuery, StringComparison.OrdinalIgnoreCase) >= 0;
+                        bool matchesQuery = string.IsNullOrEmpty(cleanLower) ||
+                            (item.LowerName != null && item.LowerName.IndexOf(cleanLower, StringComparison.Ordinal) >= 0) ||
+                            (item.LowerCategory != null && item.LowerCategory.IndexOf(cleanLower, StringComparison.Ordinal) >= 0) ||
+                            (item.LowerKeywords != null && item.LowerKeywords.IndexOf(cleanLower, StringComparison.Ordinal) >= 0);
 
                         if (!matchesQuery) continue;
 
@@ -2430,6 +2877,27 @@ namespace EffectCraftLauncher
                     }
                 }
             }
+
+            // O(N) Instant Partitioning: Place favorites at top without costly O(N log N) sorting
+            Func<List<EffectItem>, List<EffectItem>> partitionFavs = delegate(List<EffectItem> src) {
+                if (src == null || src.Count <= 1) return src;
+                var favs = new List<EffectItem>();
+                var rest = new List<EffectItem>();
+                for (int i = 0; i < src.Count; i++)
+                {
+                    var itm = src[i];
+                    if (IsFavoriteCached(itm.Name, itm.Id)) favs.Add(itm);
+                    else rest.Add(itm);
+                }
+                if (favs.Count == 0) return rest;
+                favs.AddRange(rest);
+                return favs;
+            };
+
+            matchEffects = partitionFavs(matchEffects);
+            matchPresets = partitionFavs(matchPresets);
+            matchLayers = partitionFavs(matchLayers);
+            matchCommands = partitionFavs(matchCommands);
 
             int added = 0;
             const int MAX_ROWS = 28;
@@ -2692,15 +3160,50 @@ namespace EffectCraftLauncher
             var rowGrid = new Grid();
             rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
+
+            var cfg = Program.CurrentConfig ?? new SplashConfig();
+            bool isFav = IsFavoriteCached(item.Name, item.Id);
+
+            var starBtn = new TextBlock
+            {
+                Text = isFav ? "★" : "☆",
+                Foreground = isFav ? _brushFavStar : _brushUnfavStar,
+                FontSize = 13.0,
+                FontWeight = isFav ? FontWeights.Bold : FontWeights.Normal,
+                Width = 24,
+                Height = 24,
+                TextAlignment = TextAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Cursor = System.Windows.Input.Cursors.Hand,
+                ToolTip = isFav ? "★ Favorited (Click to unpin)" : "☆ Click to pin to Favorites (or Ctrl+D)"
+            };
+
+            starBtn.MouseDown += delegate(object s, MouseButtonEventArgs e) {
+                e.Handled = true;
+                bool nowFav = cfg.ToggleFavorite(item.Name);
+                if (nowFav) _favSet.Add(item.Name);
+                else _favSet.Remove(item.Name);
+                starBtn.Text = nowFav ? "★" : "☆";
+                starBtn.Foreground = nowFav ? _brushFavStar : _brushUnfavStar;
+                starBtn.FontWeight = nowFav ? FontWeights.Bold : FontWeights.Normal;
+                starBtn.ToolTip = nowFav ? "★ Favorited (Click to unpin)" : "☆ Click to pin to Favorites (or Ctrl+D)";
+                cfg.Save(Program.AppDir);
+                ShowToast(nowFav ? "★ Added '" + item.Name + "' to Favorites" : "☆ Removed '" + item.Name + "' from Favorites");
+                if (string.IsNullOrEmpty(_searchBox.Text.Trim()) && cfg.ShowFavoritesOnOpen)
+                {
+                    ShowFavoritesList();
+                }
+            };
+            Grid.SetColumn(starBtn, 2);
+            rowGrid.Children.Add(starBtn);
 
             var label = new TextBlock
             {
                 Text = item.Name,
-                Foreground = (_currentTheme == ConsoleTheme.Light)
-                    ? new SolidColorBrush(Color.FromRgb(28, 28, 30))
-                    : new SolidColorBrush(Color.FromRgb(225, 225, 225)),
+                Foreground = (_currentTheme == ConsoleTheme.Light) ? _brushTextLight : _brushTextDark,
                 FontSize = 13.0,
-                FontFamily = new FontFamily("Segoe UI"),
+                FontFamily = _fontSegoe,
                 VerticalAlignment = System.Windows.VerticalAlignment.Center,
                 Margin = new Thickness(22, 0, 10, 0),
                 TextTrimming = TextTrimming.CharacterEllipsis
@@ -2714,11 +3217,9 @@ namespace EffectCraftLauncher
                 extraLabel = new TextBlock
                 {
                     Text = item.Extra,
-                    Foreground = (_currentTheme == ConsoleTheme.Light)
-                        ? new SolidColorBrush(Color.FromRgb(100, 100, 108))
-                        : new SolidColorBrush(Color.FromRgb(125, 125, 130)),
+                    Foreground = (_currentTheme == ConsoleTheme.Light) ? _brushExtraLight : _brushExtraDark,
                     FontSize = 11.0,
-                    FontFamily = new FontFamily("Segoe UI"),
+                    FontFamily = _fontSegoe,
                     VerticalAlignment = System.Windows.VerticalAlignment.Center,
                     Margin = new Thickness(0, 0, 12, 0)
                 };
@@ -2745,15 +3246,11 @@ namespace EffectCraftLauncher
                 if (!oldRow.IsHeader && oldRow.Container != null)
                 {
                     oldRow.Container.Background = Brushes.Transparent;
-                    oldRow.Label.Foreground = (_currentTheme == ConsoleTheme.Light)
-                        ? new SolidColorBrush(Color.FromRgb(28, 28, 30))
-                        : new SolidColorBrush(Color.FromRgb(225, 225, 225));
+                    oldRow.Label.Foreground = (_currentTheme == ConsoleTheme.Light) ? _brushTextLight : _brushTextDark;
                     oldRow.Label.FontWeight = FontWeights.Normal;
                     if (oldRow.ExtraLabel != null)
                     {
-                        oldRow.ExtraLabel.Foreground = (_currentTheme == ConsoleTheme.Light)
-                            ? new SolidColorBrush(Color.FromRgb(100, 100, 108))
-                            : new SolidColorBrush(Color.FromRgb(125, 125, 130));
+                        oldRow.ExtraLabel.Foreground = (_currentTheme == ConsoleTheme.Light) ? _brushExtraLight : _brushExtraDark;
                     }
                 }
             }
@@ -2765,14 +3262,12 @@ namespace EffectCraftLauncher
                 var newRow = _currentRows[_selectedIndex];
                 if (!newRow.IsHeader && newRow.Container != null)
                 {
-                    newRow.Container.Background = (_currentTheme == ConsoleTheme.Light)
-                        ? new SolidColorBrush(Color.FromRgb(0, 120, 215))
-                        : new SolidColorBrush(Color.FromRgb(0, 122, 204));
+                    newRow.Container.Background = (_currentTheme == ConsoleTheme.Light) ? _brushSelLight : _brushSelDark;
                     newRow.Label.Foreground = Brushes.White;
                     newRow.Label.FontWeight = FontWeights.SemiBold;
                     if (newRow.ExtraLabel != null)
                     {
-                        newRow.ExtraLabel.Foreground = new SolidColorBrush(Color.FromRgb(225, 240, 255));
+                        newRow.ExtraLabel.Foreground = _brushSelExtra;
                     }
                     newRow.Container.BringIntoView();
                 }
@@ -2783,8 +3278,47 @@ namespace EffectCraftLauncher
         {
             if (e.Key == Key.Escape)
             {
+                if (_searchDebounceTimer != null) _searchDebounceTimer.Stop();
                 HideConsole();
                 e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.Enter || e.Key == Key.Down || e.Key == Key.Up)
+            {
+                if (_searchDebounceTimer != null && _searchDebounceTimer.IsEnabled)
+                {
+                    _searchDebounceTimer.Stop();
+                    PerformSearch();
+                }
+            }
+
+            var cfg = Program.CurrentConfig ?? new SplashConfig();
+            if (Program.MatchesKeyCombo(e, cfg.FavoriteShortcut) ||
+                (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.D) ||
+                (Keyboard.Modifiers == ModifierKeys.Alt && e.Key == Key.F))
+            {
+                e.Handled = true;
+                if (_selectedIndex >= 0 && _selectedIndex < _currentRows.Count)
+                {
+                    var row = _currentRows[_selectedIndex];
+                    if (!row.IsHeader && row.Item != null)
+                    {
+                        bool nowFav = cfg.ToggleFavorite(row.Item.Name);
+                        if (nowFav) _favSet.Add(row.Item.Name);
+                        else _favSet.Remove(row.Item.Name);
+                        cfg.Save(Program.AppDir);
+                        ShowToast(nowFav ? "★ Added '" + row.Item.Name + "' to Favorites" : "☆ Removed from Favorites");
+                        if (string.IsNullOrEmpty(_searchBox.Text.Trim()) && cfg.ShowFavoritesOnOpen)
+                        {
+                            ShowFavoritesList();
+                        }
+                        else
+                        {
+                            UpdateFilter(_searchBox.Text.Trim());
+                        }
+                    }
+                }
                 return;
             }
             if (e.Key == Key.Down)
@@ -2895,11 +3429,26 @@ namespace EffectCraftLauncher
                 {
                     Program.Log("Opening recent project: " + item.Id);
                     json = "{\"id\":10,\"method\":\"ui.menu.invoke\",\"params\":{\"id\":\"file.open\",\"params\":{\"path\":\"" + item.Id.Replace("\\", "\\\\") + "\"}}}";
+                    string openRes = Program.SendTcpCommand(json);
+                    Program.Log("Apply result: " + openRes);
+
+                    // Dismiss Home screen overlay so the opened project workspace is immediately revealed!
+                    try
+                    {
+                        Program.SendTcpCommand("{\"id\":11,\"method\":\"ui.set\",\"params\":{\"home\":false}}");
+                    }
+                    catch { }
+
+                    Dispatcher.Invoke(new Action(delegate {
+                        HideConsole();
+                    }));
+                    return;
                 }
                 else
                 {
-                    Program.Log("Applying effect: " + item.Name + " (" + item.Id + ")");
-                    json = "{\"id\":10,\"method\":\"ui.menu.invoke\",\"params\":{\"id\":\"effect.apply\",\"params\":{\"effect\":\"" + item.Name + "\"}}}";
+                    string effectParam = (!string.IsNullOrEmpty(item.Id) && item.Id.StartsWith("ec.")) ? item.Id : item.Name;
+                    Program.Log("Applying effect: " + item.Name + " (" + effectParam + ")");
+                    json = "{\"id\":10,\"method\":\"ui.menu.invoke\",\"params\":{\"id\":\"effect.apply\",\"params\":{\"effect\":\"" + effectParam + "\"}}}";
                 }
                 string res = Program.SendTcpCommand(json);
                 Program.Log("Apply result: " + res);
@@ -2919,6 +3468,17 @@ namespace EffectCraftLauncher
                     Dispatcher.Invoke(new Action(delegate {
                         _statusText.Text = "⚠️ No active composition in EffectCraft";
                         _statusText.Foreground = new SolidColorBrush(Color.FromRgb(255, 184, 0));
+                        _statusText.Visibility = Visibility.Visible;
+                    }));
+                    return;
+                }
+
+                if (!string.IsNullOrEmpty(res) && res.Contains("\"error\":"))
+                {
+                    string errMsg = ExtractJsonString(res, "error") ?? "Effect could not be applied";
+                    Dispatcher.Invoke(new Action(delegate {
+                        _statusText.Text = "⚠️ " + errMsg;
+                        _statusText.Foreground = new SolidColorBrush(Color.FromRgb(255, 107, 74));
                         _statusText.Visibility = Visibility.Visible;
                     }));
                     return;
@@ -3258,7 +3818,7 @@ namespace EffectCraftLauncher
             AddEff("Channel Blur", "ec.blur.channel", "Blur & Sharpen");
             AddEff("Compound Blur", "ec.blur.compound", "Blur & Sharpen");
             AddEff("Directional Blur", "ec.blur.directional", "Blur & Sharpen");
-            AddEff("Fast Box Blur", "ec.blur.fastbox", "Blur & Sharpen");
+            AddEff("Fast Box Blur", "ec.blur.fastbox", "Blur & Sharpen", "Fast Blur, Box Blur");
             AddEff("Gaussian Blur", "ec.blur.gaussian", "Blur & Sharpen");
             AddEff("Radial Blur", "ec.blur.radial", "Blur & Sharpen");
             AddEff("Sharpen", "ec.blur.sharpen", "Blur & Sharpen");
@@ -3304,7 +3864,7 @@ namespace EffectCraftLauncher
             AddEff("Drop Shadow", "ec.perspective.dropshadow", "Perspective");
             AddEff("Hue/Saturation", "ec.color.huesaturation", "Color Correction");
             AddEff("Levels", "ec.color.levels", "Color Correction");
-            AddEff("Levels (Individual Controls)", "ec.color.levelsindiv", "Color Correction");
+            AddEff("Levels (Individual Controls)", "ec.color.levelsic", "Color Correction");
             AddEff("Lumetri Color", "ec.color.lumetri", "Color Correction");
             AddEff("Photo Filter", "ec.color.photofilter", "Color Correction");
             AddEff("Selective Color", "ec.color.selectivecolor", "Color Correction");
@@ -3323,7 +3883,7 @@ namespace EffectCraftLauncher
             AddEff("Mirror", "ec.distort.mirror", "Distort");
             AddEff("Offset", "ec.distort.offset", "Distort");
             AddEff("Optics Compensation", "ec.distort.opticscompensation", "Distort");
-            AddEff("Polar Coordinates", "ec.distort.polarcoordinates", "Distort");
+            AddEff("Polar Coordinates", "ec.distort.polar", "Distort");
             AddEff("Reshape", "ec.distort.reshape", "Distort");
             AddEff("Ripple", "ec.distort.ripple", "Distort");
             AddEff("Spherize", "ec.distort.spherize", "Distort");
@@ -3353,20 +3913,20 @@ namespace EffectCraftLauncher
             AddEff("Vegas", "ec.generate.vegas", "Generate");
             AddEff("Write-on", "ec.generate.writeon", "Generate");
 
-            AddEff("Linear Color Key", "ec.keying.linearcolorkey", "Keying");
-            AddEff("Color Difference Key", "ec.keying.colordifferencekey", "Keying");
-            AddEff("Color Range", "ec.keying.colorrange", "Keying");
-            AddEff("Difference Matte", "ec.keying.differencematte", "Keying");
-            AddEff("Extract", "ec.keying.extract", "Keying");
-            AddEff("Key Cleaner", "ec.keying.keycleaner", "Keying");
-            AddEff("Key Light", "ec.keying.keylight", "Keying");
-            AddEff("Spill Suppressor", "ec.keying.spillsuppressor", "Keying");
+            AddEff("Linear Color Key", "ec.key.linearcolor", "Keying");
+            AddEff("Color Difference Key", "ec.key.colordifference", "Keying");
+            AddEff("Color Range", "ec.key.colorrange", "Keying");
+            AddEff("Difference Matte", "ec.key.differencematte", "Keying");
+            AddEff("Extract", "ec.key.extract", "Keying");
+            AddEff("Key Cleaner", "ec.key.keycleaner", "Keying");
+            AddEff("Key Light", "ec.keying.keylight", "Keying", "Keylight, Keylight 1.2");
+            AddEff("Spill Suppressor", "ec.key.spill", "Keying");
 
             AddEff("Motion Tile", "ec.stylize.motiontile", "Stylize");
             AddEff("Posterize", "ec.stylize.posterize", "Stylize");
-            AddEff("Rough Edges", "ec.stylize.roughedges", "Stylize");
+            AddEff("Roughen Edges", "ec.stylize.roughenedges", "Stylize", "Rough Edges");
             AddEff("Scatter", "ec.stylize.scatter", "Stylize");
-            AddEff("Strobe Light", "ec.stylize.strobelight", "Stylize");
+            AddEff("Strobe Light", "ec.stylize.strobe", "Stylize");
             AddEff("Threshold", "ec.stylize.threshold", "Stylize");
 
             AddPre("Typewriter", "typewriter", "Text Animation");
@@ -3402,24 +3962,35 @@ namespace EffectCraftLauncher
             AddCommand("Preferences...", "app.settings", "Edit", "Ctrl+Alt+;");
         }
 
-        private void AddEff(string name, string id, string cat)
+        private void AddCatalogItem(EffectItem item)
         {
-            _catalog.Add(new EffectItem { Name = name, Id = id, Category = cat, IsPreset = false, Kind = ConsoleItemKind.Effect });
+            if (item != null)
+            {
+                item.LowerName = (item.Name ?? "").ToLowerInvariant();
+                item.LowerCategory = (item.Category ?? "").ToLowerInvariant();
+                item.LowerKeywords = (item.Keywords ?? "").ToLowerInvariant();
+                _catalog.Add(item);
+            }
+        }
+
+        private void AddEff(string name, string id, string cat, string keywords = null)
+        {
+            AddCatalogItem(new EffectItem { Name = name, Id = id, Category = cat, IsPreset = false, Kind = ConsoleItemKind.Effect, Keywords = keywords });
         }
 
         private void AddPre(string name, string id, string cat)
         {
-            _catalog.Add(new EffectItem { Name = name, Id = id, Category = cat, IsPreset = true, Kind = ConsoleItemKind.Preset });
+            AddCatalogItem(new EffectItem { Name = name, Id = id, Category = cat, IsPreset = true, Kind = ConsoleItemKind.Preset });
         }
 
         private void AddLayer(string name, string id, string cat, string shortcut = null)
         {
-            _catalog.Add(new EffectItem { Name = name, Id = id, Category = cat, IsPreset = false, Kind = ConsoleItemKind.Layer, Extra = shortcut });
+            AddCatalogItem(new EffectItem { Name = name, Id = id, Category = cat, IsPreset = false, Kind = ConsoleItemKind.Layer, Extra = shortcut });
         }
 
         private void AddCommand(string name, string id, string cat, string shortcut = null)
         {
-            _catalog.Add(new EffectItem { Name = name, Id = id, Category = cat, IsPreset = false, Kind = ConsoleItemKind.Command, Extra = shortcut });
+            AddCatalogItem(new EffectItem { Name = name, Id = id, Category = cat, IsPreset = false, Kind = ConsoleItemKind.Command, Extra = shortcut });
         }
 
         private void SyncLiveCommandsFromEngine()
@@ -3446,6 +4017,8 @@ namespace EffectCraftLauncher
                                 }
                                 else
                                 {
+                                    newItem.LowerName = (newItem.Name ?? "").ToLowerInvariant();
+                                    newItem.LowerCategory = (newItem.Category ?? "").ToLowerInvariant();
                                     _catalog.Add(newItem);
                                 }
                             }
@@ -3527,6 +4100,11 @@ namespace EffectCraftLauncher
                             {
                                 kind = ConsoleItemKind.Effect;
                                 category = (path.Count > 1) ? path[1] : "Effects";
+                                string effId = ExtractJsonString(obj, "effect");
+                                if (!string.IsNullOrEmpty(effId))
+                                {
+                                    id = effId;
+                                }
                             }
                             else
                             {
@@ -3611,13 +4189,14 @@ namespace EffectCraftLauncher
     {
         private TextBox _txtExePath;
         private TextBlock _lblStatus;
+        private System.Windows.Controls.CheckBox _chkUnifiedShortcut;
         private System.Windows.Controls.CheckBox _chkDesktopShortcut;
         private System.Windows.Controls.CheckBox _chkStartMenuShortcut;
         private System.Windows.Controls.CheckBox _chkInstallSplash;
 
         public FirstLaunchSetupWindow(string initialPath)
         {
-            this.Title = "Craft Console — Initial Setup & Link";
+            this.Title = "Craft Console v" + Program.VERSION + " — Initial Setup & Link";
             this.Width = 620;
             this.Height = 490;
             this.MinWidth = 560;
@@ -3780,6 +4359,16 @@ namespace EffectCraftLauncher
             };
             optStack.Children.Add(optTitle);
 
+            _chkUnifiedShortcut = new System.Windows.Controls.CheckBox
+            {
+                Content = "Create Unified 'EffectCraft (with Console)' Desktop Shortcut",
+                IsChecked = true,
+                Foreground = Brushes.White,
+                FontSize = 12,
+                Margin = new Thickness(0, 0, 0, 8)
+            };
+            optStack.Children.Add(_chkUnifiedShortcut);
+
             _chkDesktopShortcut = new System.Windows.Controls.CheckBox
             {
                 Content = "Create Desktop Shortcut (Craft Console)",
@@ -3879,7 +4468,18 @@ namespace EffectCraftLauncher
                 Program.SaveGlobalSetting("effectcraftexe", chosen);
                 Program.EffectCraftExePath = chosen;
 
-                string ownExe = Process.GetCurrentProcess().MainModule.FileName;
+                string finalExe = Program.EnsureInstalled(chosen);
+
+                if (_chkUnifiedShortcut.IsChecked == true)
+                {
+                    try
+                    {
+                        string desk = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+                        string lnk = Path.Combine(desk, "EffectCraft (with Console).lnk");
+                        Program.CreateShortcut(lnk, finalExe, "Launch EffectCraft with Craft Console companion", chosen + ",0");
+                    }
+                    catch { }
+                }
 
                 if (_chkDesktopShortcut.IsChecked == true)
                 {
@@ -3887,7 +4487,7 @@ namespace EffectCraftLauncher
                     {
                         string desk = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
                         string lnk = Path.Combine(desk, "Craft Console.lnk");
-                        Program.CreateShortcut(lnk, ownExe, "Craft Console — EffectCraft HUD Companion");
+                        Program.CreateShortcut(lnk, finalExe, "Craft Console — EffectCraft HUD Companion");
                     }
                     catch { }
                 }
@@ -3898,7 +4498,7 @@ namespace EffectCraftLauncher
                     {
                         string progs = Environment.GetFolderPath(Environment.SpecialFolder.Programs);
                         string lnk = Path.Combine(progs, "Craft Console.lnk");
-                        Program.CreateShortcut(lnk, ownExe, "Craft Console — EffectCraft HUD Companion");
+                        Program.CreateShortcut(lnk, finalExe, "Craft Console — EffectCraft HUD Companion");
                     }
                     catch { }
                 }
@@ -3984,6 +4584,7 @@ namespace EffectCraftLauncher
         private Slider _sliderSplashDuration;
         private TextBlock _lblSplashDurationVal;
 
+        private System.Windows.Controls.CheckBox _cbEnableSplash;
         private System.Windows.Controls.CheckBox _cbLoadingBar;
         private System.Windows.Controls.CheckBox _cbLoadingText;
         private System.Windows.Controls.CheckBox _cbFooter;
@@ -3991,6 +4592,8 @@ namespace EffectCraftLauncher
         // Extensions / Plugins Controls
         private Button _btnShortcut;
         private bool _isRecordingShortcut = false;
+        private Button _btnFavShortcut;
+        private bool _isRecordingFavShortcut = false;
 
         // Tabs
         private Button _tabBtnVisual;
@@ -4002,7 +4605,7 @@ namespace EffectCraftLauncher
         {
             _config = SplashConfig.Load(Program.AppDir);
 
-            this.Title = "EffectCraft Studio Customizer & Preferences";
+            this.Title = "Craft Console v" + Program.VERSION + " — Studio Customizer & Preferences";
             this.Width = 1040;
             this.Height = 750;
             this.MinWidth = 920;
@@ -4393,6 +4996,26 @@ namespace EffectCraftLauncher
 
             controlsStack.Children.Add(CreateFormLabel("Visual Elements Toggles"));
             var togglesStack = new StackPanel { Margin = new Thickness(0, 2, 0, 16) };
+
+            _cbEnableSplash = new System.Windows.Controls.CheckBox
+            {
+                Content = "Enable Startup Splash Screen",
+                Foreground = Brushes.White,
+                FontWeight = FontWeights.SemiBold,
+                IsChecked = _config.ShowSplashScreen,
+                Margin = new Thickness(0, 0, 0, 8),
+                Cursor = System.Windows.Input.Cursors.Hand
+            };
+            _cbEnableSplash.Checked += delegate {
+                _config.ShowSplashScreen = true;
+                if (_sliderSplashDuration != null) _sliderSplashDuration.IsEnabled = true;
+            };
+            _cbEnableSplash.Unchecked += delegate {
+                _config.ShowSplashScreen = false;
+                if (_sliderSplashDuration != null) _sliderSplashDuration.IsEnabled = false;
+            };
+            togglesStack.Children.Add(_cbEnableSplash);
+
             _cbLoadingBar = new System.Windows.Controls.CheckBox
             {
                 Content = "Show Startup Progress Bar",
@@ -4461,6 +5084,7 @@ namespace EffectCraftLauncher
                 _config.CornerRadius = 18.0;
                 _config.ShowLoadingBar = true;
                 _config.ShowLoadingText = true;
+                _config.ShowSplashScreen = true;
                 _config.ShowFooter = true;
                 _config.SplashDuration = 3.5;
                 _config.ArtImage = Path.Combine(Program.AppDir, "splash", "art.png");
@@ -4478,6 +5102,7 @@ namespace EffectCraftLauncher
                 if (_rbLight != null) _rbLight.IsChecked = false;
                 if (_cbLoadingBar != null) _cbLoadingBar.IsChecked = true;
                 if (_cbLoadingText != null) _cbLoadingText.IsChecked = true;
+                if (_cbEnableSplash != null) _cbEnableSplash.IsChecked = true;
                 if (_cbFooter != null) _cbFooter.IsChecked = true;
                 if (_lblImagePath != null) _lblImagePath.Text = Path.GetFileName(_config.ArtImage);
                 RefreshPreview();
@@ -4566,69 +5191,375 @@ namespace EffectCraftLauncher
                 HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
             };
 
-            var mainStack = new StackPanel { Margin = new Thickness(0, 4, 12, 0) };
+            var mainStack = new StackPanel { Margin = new Thickness(0, 4, 16, 16) };
 
-            // Panel 1: EC Console Extension
-            var fxCard = new Border
-            {
-                Background = new SolidColorBrush(Color.FromRgb(28, 28, 32)),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(46, 46, 52)),
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(10),
-                Padding = new Thickness(20),
-                Margin = new Thickness(0, 0, 0, 18)
-            };
-            var fxStack = new StackPanel();
-
-            var fxTitleRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
+            // Top Header: EC Console Extension Overview
+            var headerRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 16) };
             var fxIcon = new WpfPath
             {
                 Data = Geometry.Parse(Program.ARTCRAFT_MARK_PATH),
                 Fill = new SolidColorBrush(Color.FromRgb(0, 210, 255)),
-                Width = 18,
-                Height = 18,
+                Width = 22,
+                Height = 22,
                 Stretch = Stretch.Uniform,
                 VerticalAlignment = System.Windows.VerticalAlignment.Center
             };
-            fxTitleRow.Children.Add(fxIcon);
+            headerRow.Children.Add(fxIcon);
 
+            var titleStack = new StackPanel { Margin = new Thickness(12, 0, 0, 0) };
             var fxTitle = new TextBlock
             {
-                Text = "EC Console (Command Palette & Fast Effect Launcher)",
+                Text = "EC Console & Launch Configuration",
                 FontSize = 16,
                 FontWeight = FontWeights.Bold,
-                Foreground = Brushes.White,
-                Margin = new Thickness(10, 0, 0, 0),
-                VerticalAlignment = System.Windows.VerticalAlignment.Center
+                Foreground = Brushes.White
             };
-            fxTitleRow.Children.Add(fxTitle);
-            fxStack.Children.Add(fxTitleRow);
-
             var fxDesc = new TextBlock
             {
-                Text = "EffectCraft floating command bar. Instant filter and search across effects, layer generators, menu commands, animation presets, and recent projects.",
+                Text = "Command palette, instant startup behavior, favorite effect hotkeys, and smart search filters.",
                 FontSize = 12,
                 Foreground = new SolidColorBrush(Color.FromRgb(160, 160, 165)),
-                Margin = new Thickness(0, 0, 0, 14),
-                TextWrapping = TextWrapping.Wrap
+                Margin = new Thickness(0, 2, 0, 0)
             };
-            fxStack.Children.Add(fxDesc);
+            titleStack.Children.Add(fxTitle);
+            titleStack.Children.Add(fxDesc);
+            headerRow.Children.Add(titleStack);
+            mainStack.Children.Add(headerRow);
 
-            fxStack.Children.Add(CreateFormLabel("Activation Keyboard Shortcut"));
-            var shortcutGrid = new Grid { Margin = new Thickness(0, 4, 0, 10) };
-            shortcutGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(280) });
+            // Sub-Card 1: ⚡ Default Startup Screen (Segmented Pill Buttons)
+            var startupCard = new Border
+            {
+                Background = new SolidColorBrush(Color.FromRgb(26, 26, 31)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(46, 46, 54)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(16),
+                Margin = new Thickness(0, 0, 0, 14)
+            };
+            var startupStack = new StackPanel();
+
+            var startupTitle = new TextBlock
+            {
+                Text = "⚡ Default Startup Workspace Screen",
+                FontSize = 13.5,
+                FontWeight = FontWeights.Bold,
+                Foreground = new SolidColorBrush(Color.FromRgb(0, 210, 255)),
+                Margin = new Thickness(0, 0, 0, 4)
+            };
+            startupStack.Children.Add(startupTitle);
+
+            var startupSub = new TextBlock
+            {
+                Text = "Choose which screen or workspace EffectCraft displays automatically when launched.",
+                FontSize = 11,
+                Foreground = new SolidColorBrush(Color.FromRgb(150, 150, 158)),
+                Margin = new Thickness(0, 0, 0, 12)
+            };
+            startupStack.Children.Add(startupSub);
+
+            var pillRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 0) };
+
+            var btnPillHome = new Button();
+            var btnPillEmpty = new Button();
+            var btnPillDemo = new Button();
+
+            Action updatePillStyles = delegate {
+                string curTab = string.IsNullOrEmpty(_config.StartupTab) ? "Home" : _config.StartupTab;
+                bool isHome = curTab.Equals("Home", StringComparison.OrdinalIgnoreCase);
+                bool isEmpty = curTab.Equals("Empty", StringComparison.OrdinalIgnoreCase);
+                bool isDemo = curTab.Equals("Demo", StringComparison.OrdinalIgnoreCase);
+
+                Action<Button, string, bool> stylePill = delegate(Button btn, string label, bool selected) {
+                    btn.Content = label;
+                    btn.Height = 32;
+                    btn.Padding = new Thickness(16, 0, 16, 0);
+                    btn.Margin = new Thickness(0, 0, 10, 0);
+                    btn.Cursor = System.Windows.Input.Cursors.Hand;
+                    btn.FontSize = 12;
+                    btn.FontWeight = selected ? FontWeights.SemiBold : FontWeights.Normal;
+                    btn.Background = selected ? new SolidColorBrush(Color.FromRgb(0, 95, 165)) : new SolidColorBrush(Color.FromRgb(34, 34, 40));
+                    btn.Foreground = selected ? Brushes.White : new SolidColorBrush(Color.FromRgb(175, 175, 185));
+                    btn.BorderBrush = selected ? new SolidColorBrush(Color.FromRgb(0, 210, 255)) : new SolidColorBrush(Color.FromRgb(55, 55, 65));
+                    btn.BorderThickness = new Thickness(1);
+                };
+
+                stylePill(btnPillHome, "🏠  Home / Welcome Hub (Default)", isHome);
+                stylePill(btnPillEmpty, "📄  New Blank Composition", isEmpty);
+                stylePill(btnPillDemo, "🎬  Demo Project", isDemo);
+            };
+
+            btnPillHome.Click += delegate { _config.StartupTab = "Home"; updatePillStyles(); };
+            btnPillEmpty.Click += delegate { _config.StartupTab = "Empty"; updatePillStyles(); };
+            btnPillDemo.Click += delegate { _config.StartupTab = "Demo"; updatePillStyles(); };
+
+            updatePillStyles();
+
+            pillRow.Children.Add(btnPillHome);
+            pillRow.Children.Add(btnPillEmpty);
+            pillRow.Children.Add(btnPillDemo);
+            startupStack.Children.Add(pillRow);
+
+            startupCard.Child = startupStack;
+            mainStack.Children.Add(startupCard);
+
+            // Sub-Card 2: ★ Favorites & Quick Access
+            var favCard = new Border
+            {
+                Background = new SolidColorBrush(Color.FromRgb(26, 26, 31)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(46, 46, 54)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(16),
+                Margin = new Thickness(0, 0, 0, 14)
+            };
+            var favStack = new StackPanel();
+
+            var favTitle = new TextBlock
+            {
+                Text = "★ Favorites & Quick Access",
+                FontSize = 13.5,
+                FontWeight = FontWeights.Bold,
+                Foreground = new SolidColorBrush(Color.FromRgb(255, 215, 0)),
+                Margin = new Thickness(0, 0, 0, 4)
+            };
+            favStack.Children.Add(favTitle);
+
+            var favSub = new TextBlock
+            {
+                Text = "Star your favorite effects and presets for priority search ranking and instant access.",
+                FontSize = 11,
+                Foreground = new SolidColorBrush(Color.FromRgb(150, 150, 158)),
+                Margin = new Thickness(0, 0, 0, 12)
+            };
+            favStack.Children.Add(favSub);
+
+            var chkShowFav = new System.Windows.Controls.CheckBox
+            {
+                Content = "Show Favorites list automatically on console open (empty search)",
+                IsChecked = _config.ShowFavoritesOnOpen,
+                Foreground = Brushes.White,
+                FontSize = 12,
+                Margin = new Thickness(0, 0, 0, 12),
+                Cursor = System.Windows.Input.Cursors.Hand
+            };
+            chkShowFav.Checked += delegate { _config.ShowFavoritesOnOpen = true; };
+            chkShowFav.Unchecked += delegate { _config.ShowFavoritesOnOpen = false; };
+            favStack.Children.Add(chkShowFav);
+
+            // Favorite Toggle Shortcut Recorder
+            var favShortcutLabel = new TextBlock
+            {
+                Text = "Favorite Toggle Shortcut:",
+                FontSize = 11.5,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(Color.FromRgb(180, 180, 185)),
+                Margin = new Thickness(0, 0, 0, 2)
+            };
+            favStack.Children.Add(favShortcutLabel);
+
+            var favShortcutDesc = new TextBlock
+            {
+                Text = "Press this hotkey while highlighting any effect in the console to add or remove it from Favorites.",
+                FontSize = 11,
+                Foreground = new SolidColorBrush(Color.FromRgb(130, 130, 138)),
+                Margin = new Thickness(0, 0, 0, 6)
+            };
+            favStack.Children.Add(favShortcutDesc);
+
+            var favShortcutGrid = new Grid { Margin = new Thickness(0, 0, 0, 12) };
+            favShortcutGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });
+            favShortcutGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(10) });
+            favShortcutGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            _btnFavShortcut = new Button
+            {
+                Content = string.IsNullOrEmpty(_config.FavoriteShortcut) ? "Ctrl + D" : _config.FavoriteShortcut,
+                FontSize = 12.5,
+                FontWeight = FontWeights.SemiBold,
+                Height = 32,
+                Background = new SolidColorBrush(Color.FromRgb(36, 36, 42)),
+                Foreground = new SolidColorBrush(Color.FromRgb(255, 215, 0)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(55, 55, 64)),
+                BorderThickness = new Thickness(1),
+                Cursor = System.Windows.Input.Cursors.Hand,
+                Focusable = true
+            };
+
+            _btnFavShortcut.Click += delegate {
+                _isRecordingFavShortcut = true;
+                _btnFavShortcut.Content = "Press any key combo...";
+                _btnFavShortcut.Background = new SolidColorBrush(Color.FromRgb(50, 42, 18));
+                _btnFavShortcut.BorderBrush = new SolidColorBrush(Color.FromRgb(255, 215, 0));
+                _btnFavShortcut.Focus();
+            };
+
+            _btnFavShortcut.PreviewKeyDown += delegate(object s, KeyEventArgs e) {
+                if (!_isRecordingFavShortcut) return;
+                e.Handled = true;
+
+                Key k = (e.Key == Key.System) ? e.SystemKey : e.Key;
+                if (k == Key.LeftCtrl || k == Key.RightCtrl || k == Key.LeftAlt || k == Key.RightAlt || k == Key.LeftShift || k == Key.RightShift)
+                {
+                    return;
+                }
+
+                bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
+                bool alt = (Keyboard.Modifiers & ModifierKeys.Alt) != 0;
+                bool shift = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
+
+                if (!ctrl && !alt && !shift && !(k >= Key.F1 && k <= Key.F12))
+                {
+                    // Require at least one modifier key or F-key to avoid blocking typing in search box
+                    return;
+                }
+
+                var parts = new List<string>();
+                if (ctrl) parts.Add("Ctrl");
+                if (alt) parts.Add("Alt");
+                if (shift) parts.Add("Shift");
+                parts.Add(k.ToString());
+
+                string combo = string.Join(" + ", parts.ToArray());
+                _config.FavoriteShortcut = combo;
+                _btnFavShortcut.Content = combo;
+                _btnFavShortcut.Background = new SolidColorBrush(Color.FromRgb(36, 36, 42));
+                _btnFavShortcut.BorderBrush = new SolidColorBrush(Color.FromRgb(55, 55, 64));
+                _isRecordingFavShortcut = false;
+            };
+
+            _btnFavShortcut.LostFocus += delegate {
+                if (_isRecordingFavShortcut)
+                {
+                    _isRecordingFavShortcut = false;
+                    _btnFavShortcut.Content = string.IsNullOrEmpty(_config.FavoriteShortcut) ? "Ctrl + D" : _config.FavoriteShortcut;
+                    _btnFavShortcut.Background = new SolidColorBrush(Color.FromRgb(36, 36, 42));
+                    _btnFavShortcut.BorderBrush = new SolidColorBrush(Color.FromRgb(55, 55, 64));
+                }
+            };
+
+            Grid.SetColumn(_btnFavShortcut, 0);
+            favShortcutGrid.Children.Add(_btnFavShortcut);
+
+            var btnFavReset = new Button
+            {
+                Content = "Reset to Default (Ctrl + D)",
+                Padding = new Thickness(14, 0, 14, 0),
+                Height = 32,
+                Background = new SolidColorBrush(Color.FromRgb(45, 45, 52)),
+                Foreground = Brushes.White,
+                BorderThickness = new Thickness(0),
+                Cursor = System.Windows.Input.Cursors.Hand
+            };
+            btnFavReset.Click += delegate {
+                _config.FavoriteShortcut = "Ctrl + D";
+                _btnFavShortcut.Content = "Ctrl + D";
+                _btnFavShortcut.Background = new SolidColorBrush(Color.FromRgb(36, 36, 42));
+                _btnFavShortcut.BorderBrush = new SolidColorBrush(Color.FromRgb(55, 55, 64));
+                _isRecordingFavShortcut = false;
+            };
+            Grid.SetColumn(btnFavReset, 2);
+            favShortcutGrid.Children.Add(btnFavReset);
+            favStack.Children.Add(favShortcutGrid);
+
+            // Favorites Prefix Row
+            var favPrefixRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 0) };
+            var lblFavPref = new TextBlock
+            {
+                Text = "Favorites Filter Keyword Prefix:",
+                Foreground = new SolidColorBrush(Color.FromRgb(180, 180, 185)),
+                FontSize = 12,
+                FontWeight = FontWeights.SemiBold,
+                VerticalAlignment = System.Windows.VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 10, 0)
+            };
+            favPrefixRow.Children.Add(lblFavPref);
+
+            var txtFavPref = CreateStyledTextBox(_config.PrefixFavorites);
+            txtFavPref.Width = 90;
+            txtFavPref.Height = 28;
+            txtFavPref.Margin = new Thickness(0);
+            txtFavPref.TextChanged += delegate { _config.PrefixFavorites = txtFavPref.Text.Trim(); };
+            favPrefixRow.Children.Add(txtFavPref);
+
+            var favPrefHint = new TextBlock
+            {
+                Text = "(e.g. typing @fav filters exclusively to starred items)",
+                Foreground = new SolidColorBrush(Color.FromRgb(130, 130, 138)),
+                FontSize = 11,
+                VerticalAlignment = System.Windows.VerticalAlignment.Center,
+                Margin = new Thickness(10, 0, 0, 0)
+            };
+            favPrefixRow.Children.Add(favPrefHint);
+            favStack.Children.Add(favPrefixRow);
+
+            favCard.Child = favStack;
+            mainStack.Children.Add(favCard);
+
+            // Sub-Card 3: ⌨️ Console Palette & Catalog Search
+            var consoleCard = new Border
+            {
+                Background = new SolidColorBrush(Color.FromRgb(26, 26, 31)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(46, 46, 54)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(16),
+                Margin = new Thickness(0, 0, 0, 18)
+            };
+            var consoleStack = new StackPanel();
+
+            var consoleTitle = new TextBlock
+            {
+                Text = "⌨️ Console Palette & Catalog Search",
+                FontSize = 13.5,
+                FontWeight = FontWeights.Bold,
+                Foreground = new SolidColorBrush(Color.FromRgb(0, 210, 255)),
+                Margin = new Thickness(0, 0, 0, 4)
+            };
+            consoleStack.Children.Add(consoleTitle);
+
+            var consoleSub = new TextBlock
+            {
+                Text = "Global summon shortcut, catalog indexing toggles, and category search prefixes.",
+                FontSize = 11,
+                Foreground = new SolidColorBrush(Color.FromRgb(150, 150, 158)),
+                Margin = new Thickness(0, 0, 0, 12)
+            };
+            consoleStack.Children.Add(consoleSub);
+
+            // Global Summon Shortcut
+            var shortcutLabel = new TextBlock
+            {
+                Text = "Global Activation Shortcut:",
+                FontSize = 11.5,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(Color.FromRgb(180, 180, 185)),
+                Margin = new Thickness(0, 0, 0, 2)
+            };
+            consoleStack.Children.Add(shortcutLabel);
+
+            var shortcutDesc = new TextBlock
+            {
+                Text = "Summons the floating command console directly under mouse cursor inside EffectCraft.",
+                FontSize = 11,
+                Foreground = new SolidColorBrush(Color.FromRgb(130, 130, 138)),
+                Margin = new Thickness(0, 0, 0, 6)
+            };
+            consoleStack.Children.Add(shortcutDesc);
+
+            var shortcutGrid = new Grid { Margin = new Thickness(0, 0, 0, 14) };
+            shortcutGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });
             shortcutGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(10) });
             shortcutGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
             _btnShortcut = new Button
             {
                 Content = _config.Shortcut,
-                FontSize = 13,
+                FontSize = 12.5,
                 FontWeight = FontWeights.SemiBold,
-                Height = 36,
+                Height = 32,
                 Background = new SolidColorBrush(Color.FromRgb(36, 36, 42)),
                 Foreground = new SolidColorBrush(Color.FromRgb(0, 210, 255)),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(55, 55, 62)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(55, 55, 64)),
                 BorderThickness = new Thickness(1),
                 Cursor = System.Windows.Input.Cursors.Hand,
                 Focusable = true
@@ -4666,7 +5597,7 @@ namespace EffectCraftLauncher
                 _config.Shortcut = combo;
                 _btnShortcut.Content = combo;
                 _btnShortcut.Background = new SolidColorBrush(Color.FromRgb(36, 36, 42));
-                _btnShortcut.BorderBrush = new SolidColorBrush(Color.FromRgb(55, 55, 62));
+                _btnShortcut.BorderBrush = new SolidColorBrush(Color.FromRgb(55, 55, 64));
                 _isRecordingShortcut = false;
             };
 
@@ -4676,7 +5607,7 @@ namespace EffectCraftLauncher
                     _isRecordingShortcut = false;
                     _btnShortcut.Content = _config.Shortcut;
                     _btnShortcut.Background = new SolidColorBrush(Color.FromRgb(36, 36, 42));
-                    _btnShortcut.BorderBrush = new SolidColorBrush(Color.FromRgb(55, 55, 62));
+                    _btnShortcut.BorderBrush = new SolidColorBrush(Color.FromRgb(55, 55, 64));
                 }
             };
 
@@ -4687,7 +5618,7 @@ namespace EffectCraftLauncher
             {
                 Content = "Reset to Default (Ctrl + Space)",
                 Padding = new Thickness(14, 0, 14, 0),
-                Height = 36,
+                Height = 32,
                 Background = new SolidColorBrush(Color.FromRgb(45, 45, 52)),
                 Foreground = Brushes.White,
                 BorderThickness = new Thickness(0),
@@ -4697,15 +5628,15 @@ namespace EffectCraftLauncher
                 _config.Shortcut = "Ctrl + Space";
                 _btnShortcut.Content = "Ctrl + Space";
                 _btnShortcut.Background = new SolidColorBrush(Color.FromRgb(36, 36, 42));
-                _btnShortcut.BorderBrush = new SolidColorBrush(Color.FromRgb(55, 55, 62));
+                _btnShortcut.BorderBrush = new SolidColorBrush(Color.FromRgb(55, 55, 64));
                 _isRecordingShortcut = false;
             };
             Grid.SetColumn(btnReset, 2);
             shortcutGrid.Children.Add(btnReset);
-            fxStack.Children.Add(shortcutGrid);
+            consoleStack.Children.Add(shortcutGrid);
 
-            // 1. Search Catalog Sections Toggles
-            fxStack.Children.Add(CreateFormLabel("Search Catalog Sections"));
+            // Search Catalog Sections
+            consoleStack.Children.Add(CreateFormLabel("Search Catalog Sections"));
             var sectionsGrid = new Grid { Margin = new Thickness(0, 4, 0, 14) };
             sectionsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             sectionsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -4748,10 +5679,10 @@ namespace EffectCraftLauncher
             Grid.SetRow(cbRecent, 2); Grid.SetColumn(cbRecent, 0);
             sectionsGrid.Children.Add(cbRecent);
 
-            fxStack.Children.Add(sectionsGrid);
+            consoleStack.Children.Add(sectionsGrid);
 
-            // 2. Custom Smart Filtering Keyword Prefixes
-            fxStack.Children.Add(CreateFormLabel("Custom Smart Filtering Keyword Prefixes"));
+            // Custom Smart Filtering Keyword Prefixes
+            consoleStack.Children.Add(CreateFormLabel("Custom Smart Filtering Keyword Prefixes"));
             var prefixGrid = new Grid { Margin = new Thickness(0, 4, 0, 14) };
             prefixGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             prefixGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -4787,7 +5718,7 @@ namespace EffectCraftLauncher
             addPrefixField("Commands Prefix", _config.PrefixCommands, delegate(string s) { _config.PrefixCommands = s; }, 1, 0);
             addPrefixField("Recent Projects Prefix", _config.PrefixRecent, delegate(string s) { _config.PrefixRecent = s; }, 1, 1);
 
-            fxStack.Children.Add(prefixGrid);
+            consoleStack.Children.Add(prefixGrid);
 
             var fxStatus = new TextBlock
             {
@@ -4796,10 +5727,10 @@ namespace EffectCraftLauncher
                 Foreground = new SolidColorBrush(Color.FromRgb(110, 190, 120)),
                 Margin = new Thickness(0, 4, 0, 0)
             };
-            fxStack.Children.Add(fxStatus);
+            consoleStack.Children.Add(fxStatus);
 
-            fxCard.Child = fxStack;
-            mainStack.Children.Add(fxCard);
+            consoleCard.Child = consoleStack;
+            mainStack.Children.Add(consoleCard);
 
             // Panel 2: ScriptUI & Panels
             var scriptCard = new Border
@@ -4944,6 +5875,34 @@ namespace EffectCraftLauncher
 
             var actionButtonsRow = new WrapPanel { Orientation = Orientation.Horizontal };
 
+            var btnCreateUnifiedDesk = new Button
+            {
+                Content = "Create 'EffectCraft (with Console)' Shortcut",
+                Padding = new Thickness(14, 6, 14, 6),
+                Background = new SolidColorBrush(Color.FromRgb(40, 40, 48)),
+                Foreground = new SolidColorBrush(Color.FromRgb(0, 210, 255)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0, 150, 220)),
+                FontWeight = FontWeights.SemiBold,
+                Cursor = System.Windows.Input.Cursors.Hand,
+                Margin = new Thickness(0, 0, 10, 8)
+            };
+            btnCreateUnifiedDesk.Click += delegate {
+                try
+                {
+                    string desk = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+                    string lnk = Path.Combine(desk, "EffectCraft (with Console).lnk");
+                    string ecPath = Program.EffectCraftExePath;
+                    string ownExe = Process.GetCurrentProcess().MainModule.FileName;
+                    Program.CreateShortcut(lnk, ownExe, "Launch EffectCraft with Craft Console companion", !string.IsNullOrEmpty(ecPath) ? (ecPath + ",0") : null);
+                    MessageBox.Show("Unified 'EffectCraft (with Console)' shortcut created on Desktop!\n\nLaunching this shortcut opens EffectCraft with the console attached and both will close together.", "Craft Console", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Error creating shortcut: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            };
+            actionButtonsRow.Children.Add(btnCreateUnifiedDesk);
+
             var btnCreateDesk = new Button
             {
                 Content = "Create Desktop Shortcut",
@@ -5000,7 +5959,7 @@ namespace EffectCraftLauncher
                 BorderBrush = new SolidColorBrush(Color.FromRgb(65, 65, 78)),
                 FontWeight = FontWeights.SemiBold,
                 Cursor = System.Windows.Input.Cursors.Hand,
-                Margin = new Thickness(0, 0, 0, 8)
+                Margin = new Thickness(0, 0, 10, 8)
             };
             btnReinstallSplash.Click += delegate {
                 try
@@ -5018,6 +5977,22 @@ namespace EffectCraftLauncher
                 }
             };
             actionButtonsRow.Children.Add(btnReinstallSplash);
+
+            var btnUninstall = new Button
+            {
+                Content = "Uninstall Craft Console...",
+                Padding = new Thickness(14, 6, 14, 6),
+                Background = new SolidColorBrush(Color.FromRgb(55, 30, 32)),
+                Foreground = new SolidColorBrush(Color.FromRgb(255, 120, 120)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(120, 45, 50)),
+                FontWeight = FontWeights.SemiBold,
+                Cursor = System.Windows.Input.Cursors.Hand,
+                Margin = new Thickness(0, 0, 10, 8)
+            };
+            btnUninstall.Click += delegate {
+                Program.RunUninstaller();
+            };
+            actionButtonsRow.Children.Add(btnUninstall);
 
             installStack.Children.Add(actionButtonsRow);
             installCard.Child = installStack;
