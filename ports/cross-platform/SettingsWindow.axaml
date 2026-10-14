@@ -33,11 +33,11 @@
         
         <Grid RowDefinitions="Auto,*,Auto" Margin="24">
             
-            <!-- ROW 0: Top Header & Segmented Tabs -->
-            <Grid Grid.Row="0" Margin="0,0,0,16" ColumnDefinitions="*,Auto">
+            <!-- ROW 0: Top Header & Segmented Tabs & Window Close -->
+            <Grid Grid.Row="0" Margin="0,0,0,16" ColumnDefinitions="*,Auto,Auto" Background="Transparent" PointerPressed="OnHeaderPointerPressed">
                 
                 <!-- Title & Subtitle Header -->
-                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                <StackPanel Grid.Column="0" VerticalAlignment="Center" Background="Transparent" PointerPressed="OnHeaderPointerPressed">
                     <TextBlock Text="EffectCraft Studio &amp; Preferences"
                                FontSize="22"
                                FontWeight="Bold"
@@ -79,6 +79,24 @@
                                 Cursor="Hand" />
                     </StackPanel>
                 </Border>
+
+                <!-- Top Right Close Window Button -->
+                <Button x:Name="BtnCloseTop"
+                        Grid.Column="2"
+                        Content="✕"
+                        FontSize="13"
+                        FontWeight="Bold"
+                        Foreground="#9696A0"
+                        Background="#1C1C21"
+                        BorderBrush="#32323C"
+                        BorderThickness="1"
+                        CornerRadius="7"
+                        Width="34" Height="34"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center"
+                        Cursor="Hand"
+                        Margin="12,0,0,0"
+                        ToolTip.Tip="Close Studio Customizer" />
             </Grid>
 
             <!-- ROW 1: Active Tab Body -->
@@ -399,14 +417,15 @@
                                 </StackPanel>
                             </StackPanel>
 
-                            <!-- Sub-Card 1: ⌨️ Global Summon Shortcut & Catalog -->
+                            <!-- Sub-Card 1: ⌨️ In-App Summon Shortcut & Catalog -->
                             <Border Background="#1A1A1F" BorderBrush="#2E2E36" BorderThickness="1" CornerRadius="8" Padding="16">
                                 <StackPanel Spacing="10">
                                     <TextBlock Text="⌨️ Console Palette &amp; Catalog Search" FontSize="13.5" FontWeight="Bold" Foreground="#00D2FF" />
-                                    <TextBlock Text="Global summon shortcut, catalog indexing toggles, and category search prefixes." FontSize="11" Foreground="#96969E" />
+                                    <TextBlock Text="In-app summon shortcut, catalog indexing toggles, and category search prefixes." FontSize="11" Foreground="#96969E" />
 
                                     <!-- Hotkey Row -->
-                                    <TextBlock Text="Global Summon Shortcut (Linux / KDE Wayland):" FontSize="11.5" FontWeight="SemiBold" Foreground="#B4B4B9" />
+                                    <TextBlock Text="In-App Summon Shortcut (Active inside EffectCraft):" FontSize="11.5" FontWeight="SemiBold" Foreground="#B4B4B9" />
+                                    <TextBlock Text="Triggers exclusively when EffectCraft is focused. Never hijacks hotkeys in other applications (Wayland &amp; X11 universal)." FontSize="10.5" Foreground="#787882" Margin="0,-4,0,0" />
                                     <Grid ColumnDefinitions="240,10,Auto">
                                         <Button x:Name="BtnGlobalShortcut"
                                                 Grid.Column="0"

@@ -17,7 +17,7 @@
             ClipToBounds="True">
         <Grid RowDefinitions="Auto,*,Auto" Margin="28">
             <!-- Header -->
-            <StackPanel Grid.Row="0" Spacing="6" Margin="0,0,0,16">
+            <StackPanel Grid.Row="0" Spacing="6" Margin="0,0,0,16" Background="Transparent" PointerPressed="OnHeaderPointerPressed">
                 <StackPanel Orientation="Horizontal" Spacing="10">
                     <Border Width="32" Height="32"
                             CornerRadius="8"

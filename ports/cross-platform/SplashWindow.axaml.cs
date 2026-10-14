@@ -180,6 +180,7 @@ namespace CraftConsole.CrossPlatform
                 UpdateProgress(100, "Ready!");
                 try
                 {
+                    LinuxDesktopIntegration.ConfigureInAppShortcut(_config.Shortcut);
                     EngineClient.SendTcpCommand("{\"id\":99,\"method\":\"ui.focus\",\"params\":{}}");
                 }
                 catch { }

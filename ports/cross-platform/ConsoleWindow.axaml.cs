@@ -42,9 +42,11 @@ namespace CraftConsole.CrossPlatform
         private static readonly SolidColorBrush _brushTextDark = new SolidColorBrush(Color.FromRgb(225, 225, 225));
         private static readonly SolidColorBrush _brushExtraDark = new SolidColorBrush(Color.FromRgb(125, 125, 130));
         private static readonly SolidColorBrush _brushSelDark = new SolidColorBrush(Color.FromRgb(0, 122, 204));
+        public static ConsoleWindow? CurrentInstance { get; private set; }
 
         public ConsoleWindow()
         {
+            CurrentInstance = this;
             InitializeComponent();
 
             _searchBox = this.FindControl<TextBox>("SearchBox")!;
@@ -139,6 +141,14 @@ namespace CraftConsole.CrossPlatform
                     _isOpening = false;
                 }
             });
+        }
+
+        public void OnHeaderPointerPressed(object? sender, PointerPressedEventArgs e)
+        {
+            if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            {
+                BeginMoveDrag(e);
+            }
         }
 
         public void PositionAtCursorOrActiveScreen()

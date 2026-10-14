@@ -82,6 +82,9 @@ namespace CraftConsole.CrossPlatform
         private Button _btnLocateExe;
         private Button _btnCreateShortcuts;
 
+        // Window Header Controls
+        private Button _btnCloseTop;
+
         // Bottom Action Buttons
         private Button _btnClose;
         private Button _btnSave;
@@ -165,6 +168,7 @@ namespace CraftConsole.CrossPlatform
             _btnLocateExe = this.FindControl<Button>("BtnLocateExe")!;
             _btnCreateShortcuts = this.FindControl<Button>("BtnCreateShortcuts")!;
 
+            _btnCloseTop = this.FindControl<Button>("BtnCloseTop")!;
             _btnClose = this.FindControl<Button>("BtnClose")!;
             _btnSave = this.FindControl<Button>("BtnSave")!;
         }
@@ -516,14 +520,23 @@ namespace CraftConsole.CrossPlatform
                 }
             };
 
-            // Bottom Buttons
+            // Window Close Buttons
+            _btnCloseTop.Click += (s, e) => Close();
             _btnClose.Click += (s, e) => Close();
             _btnSave.Click += (s, e) =>
             {
                 _config.Save(AppContext.BaseDirectory);
-                LinuxDesktopIntegration.RegisterGlobalShortcuts(_config.Shortcut);
+                LinuxDesktopIntegration.ConfigureInAppShortcut(_config.Shortcut);
                 Close();
             };
+        }
+
+        private void OnHeaderPointerPressed(object? sender, PointerPressedEventArgs e)
+        {
+            if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            {
+                BeginMoveDrag(e);
+            }
         }
 
         private string FormatKeyCombo(KeyEventArgs e)

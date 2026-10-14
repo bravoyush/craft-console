@@ -5,6 +5,7 @@ using System.IO;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Tasks;
 
 namespace CraftConsole.CrossPlatform
 {
@@ -263,27 +264,139 @@ StartupNotify=true
 
             return (count, cfgPurged);
         }
-
-        public static void RegisterGlobalShortcuts(string shortcut = "Ctrl+Space")
+        public static void CleanGlobalShortcuts()
         {
             if (!OperatingSystem.IsLinux()) return;
             try
             {
-                string desktop = Environment.GetEnvironmentVariable("XDG_CURRENT_DESKTOP") ?? "";
+                // Remove any legacy global shortcut entries from KDE system configs
+                TryRunCommand("kwriteconfig6", "--file kglobalshortcutsrc --group craft-console.desktop --delete");
+                TryRunCommand("kwriteconfig5", "--file kglobalshortcutsrc --group craft-console.desktop --delete");
+                TryRunCommand("kbuildsycoca6", "");
+                TryRunCommand("qdbus6", "org.kde.KWin /KWin org.kde.KWin.reconfigure");
+                TryRunCommand("qdbus", "org.kde.KWin /KWin org.kde.KWin.reconfigure");
+            }
+            catch { }
+        }
 
-                // KDE Plasma (Plasma 6 / Plasma 5)
-                if (desktop.Contains("KDE", StringComparison.OrdinalIgnoreCase))
+        public static void RegisterGlobalShortcuts(string shortcut = "Ctrl+Space")
+        {
+            // Backward compatibility stub - routes to non-intrusive In-App shortcut configuration
+            ConfigureInAppShortcut(shortcut);
+        }
+
+        public static void ConfigureInAppShortcut(string shortcut = "Ctrl+Space")
+        {
+            if (!OperatingSystem.IsLinux()) return;
+            try
+            {
+                // 1. Clean any global desktop shortcut pollution so system hotkeys are never hijacked
+                CleanGlobalShortcuts();
+
+                // 2. Normalize shortcut format (e.g. "Ctrl + Space" -> "Ctrl+Space")
+                string norm = (string.IsNullOrEmpty(shortcut) ? "Ctrl+Space" : shortcut)
+                    .Replace(" ", "");
+
+                string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                string configDir = Path.Combine(home, ".config", "effectcraft");
+                if (!Directory.Exists(configDir)) Directory.CreateDirectory(configDir);
+
+                // 3. Write CraftConsole in-app trigger script
+                string scriptPath = Path.Combine(configDir, "CraftConsole.jsx");
+                string scriptContent = @"// Craft Console In-App Trigger
+// Triggers Craft Console palette over IPC exclusively when EffectCraft is focused
+(function() {
+    try {
+        var s = new Socket();
+        if (s.open(""127.0.0.1:9879"", ""UTF-8"")) {
+            s.writeln(""toggle"");
+            s.close();
+        }
+    } catch(e) {}
+})();
+";
+                File.WriteAllText(scriptPath, scriptContent, new UTF8Encoding(false));
+
+                // 4. Ensure allowScriptsWriteFiles is enabled in prefs.json
+                string prefsPath = Path.Combine(configDir, "prefs.json");
+                if (File.Exists(prefsPath))
                 {
-                    TryRunCommand("kwriteconfig6", $"--file kglobalshortcutsrc --group craft-console.desktop --key _k_friendly_name \"Craft Console\"");
-                    TryRunCommand("kwriteconfig6", $"--file kglobalshortcutsrc --group craft-console.desktop --key _launch \"{shortcut},{shortcut},Craft Console\"");
-                    TryRunCommand("kwriteconfig5", $"--file kglobalshortcutsrc --group craft-console.desktop --key _k_friendly_name \"Craft Console\"");
-                    TryRunCommand("kwriteconfig5", $"--file kglobalshortcutsrc --group craft-console.desktop --key _launch \"{shortcut},{shortcut},Craft Console\"");
-                    TryRunCommand("kbuildsycoca6", "");
-                    TryRunCommand("qdbus6", "org.kde.KWin /KWin org.kde.KWin.reconfigure");
-                    TryRunCommand("qdbus", "org.kde.KWin /KWin org.kde.KWin.reconfigure");
+                    try
+                    {
+                        string content = File.ReadAllText(prefsPath);
+                        if (!content.Contains("\"allowScriptsWriteFiles\": true"))
+                        {
+                            content = content.Replace("\"allowScriptsWriteFiles\": false", "\"allowScriptsWriteFiles\": true");
+                            File.WriteAllText(prefsPath, content, new UTF8Encoding(false));
+                        }
+                    }
+                    catch { }
+                }
+
+                // 5. If EffectCraft is running, dynamically push shortcut to engine via TCP (port 9877)
+                if (EngineClient.IsEngineListening(150))
+                {
+                    Task.Run(() =>
+                    {
+                        try
+                        {
+                            string json = $"{{\"id\":100,\"method\":\"shortcuts.set\",\"params\":{{\"command\":\"file.runScript\",\"params\":{{\"path\":\"{scriptPath.Replace("\\", "/")}\"}},\"keys\":\"{norm}\"}}}}";
+                            EngineClient.SendTcpCommand(json, 1500);
+                        }
+                        catch { }
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Error configuring in-app shortcut: " + ex.Message);
+            }
+        }
+
+        public static bool IsEffectCraftForeground()
+        {
+            if (!OperatingSystem.IsLinux()) return true;
+
+            try
+            {
+                // 1. If Console window is currently visible, allow toggling it
+                if (ConsoleWindow.CurrentInstance != null && ConsoleWindow.CurrentInstance.IsVisible)
+                {
+                    return true;
+                }
+
+                // 2. Query active window under X11
+                string activeWinId = RunCommandOutput("xprop", "-root _NET_ACTIVE_WINDOW")?.Trim() ?? "";
+                if (!string.IsNullOrEmpty(activeWinId) && activeWinId.Contains("#"))
+                {
+                    string id = activeWinId.Split('#')[1].Trim();
+                    string winClass = RunCommandOutput("xprop", $"-id {id} WM_CLASS")?.ToLowerInvariant() ?? "";
+                    if (winClass.Contains("effectcraft") || winClass.Contains("craftconsole"))
+                    {
+                        return true;
+                    }
+                }
+
+                // 3. Query active window under Hyprland
+                string hypr = RunCommandOutput("hyprctl", "activewindow -j")?.ToLowerInvariant() ?? "";
+                if (!string.IsNullOrEmpty(hypr) && (hypr.Contains("\"class\": \"effectcraft\"") || hypr.Contains("\"class\": \"craftconsole\"")))
+                {
+                    return true;
+                }
+
+                // 4. Check if EffectCraft process exists and engine is listening
+                if (EngineClient.IsEngineListening(60))
+                {
+                    var procs = Process.GetProcessesByName("effectcraft");
+                    if (procs.Length > 0)
+                    {
+                        return true;
+                    }
                 }
             }
             catch { }
+
+            return false;
         }
 
         public static ScreenGeometry GetActiveScreenGeometry()

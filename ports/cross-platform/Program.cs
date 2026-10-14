@@ -182,8 +182,11 @@ namespace CraftConsole.CrossPlatform
             {
                 Dispatcher.UIThread.Post(() =>
                 {
-                    EnsureConsoleWindow();
-                    _consoleWindow?.ToggleVisibility();
+                    if (LinuxDesktopIntegration.IsEffectCraftForeground())
+                    {
+                        EnsureConsoleWindow();
+                        _consoleWindow?.ToggleVisibility();
+                    }
                 });
             });
 
@@ -191,6 +194,9 @@ namespace CraftConsole.CrossPlatform
             SetupTrayIcon(desktop);
 
             var config = SplashConfig.Load();
+
+            // Configure non-intrusive In-App shortcut inside EffectCraft
+            LinuxDesktopIntegration.ConfigureInAppShortcut(config.Shortcut);
 
             void ShowMainWindow()
             {

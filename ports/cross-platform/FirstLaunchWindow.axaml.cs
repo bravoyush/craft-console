@@ -61,6 +61,14 @@ namespace CraftConsole.CrossPlatform
             AvaloniaXamlLoader.Load(this);
         }
 
+        private void OnHeaderPointerPressed(object? sender, Avalonia.Input.PointerPressedEventArgs e)
+        {
+            if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            {
+                BeginMoveDrag(e);
+            }
+        }
+
         private void UpdateBinaryStatus(string? path)
         {
             if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
