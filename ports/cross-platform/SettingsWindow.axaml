@@ -5,9 +5,8 @@
         Width="1040" Height="750"
         MinWidth="920" MinHeight="660"
         WindowStartupLocation="CenterScreen"
-        SystemDecorations="None"
+        SystemDecorations="Full"
         CanResize="True"
-        Background="Transparent"
         Topmost="False">
 
     <Window.Styles>
