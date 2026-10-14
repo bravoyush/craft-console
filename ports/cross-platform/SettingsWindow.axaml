@@ -5,7 +5,10 @@
         Width="1040" Height="750"
         MinWidth="920" MinHeight="660"
         WindowStartupLocation="CenterScreen"
-        SystemDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="NoChrome"
+        ExtendClientAreaTitleBarHeightHint="70"
+        SystemDecorations="Full"
         CanResize="True"
         Background="Transparent"
         Topmost="False">

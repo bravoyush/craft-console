@@ -301,8 +301,7 @@ StartupNotify=true
                 string configDir = Path.Combine(home, ".config", "effectcraft");
                 if (!Directory.Exists(configDir)) Directory.CreateDirectory(configDir);
 
-                // 3. Write CraftConsole in-app trigger script
-                string scriptPath = Path.Combine(configDir, "CraftConsole.jsx");
+                // 3. Write CraftConsole in-app trigger script into config and Scripts folders
                 string scriptContent = @"// Craft Console In-App Trigger
 // Triggers Craft Console palette over IPC exclusively when EffectCraft is focused
 (function() {
@@ -315,7 +314,17 @@ StartupNotify=true
     } catch(e) {}
 })();
 ";
+                string scriptPath = Path.Combine(configDir, "CraftConsole.jsx");
                 File.WriteAllText(scriptPath, scriptContent, new UTF8Encoding(false));
+
+                // Also place into EffectCraft's recognized Scripts folders
+                try
+                {
+                    string userScriptsDir = Path.Combine(configDir, "Scripts");
+                    if (!Directory.Exists(userScriptsDir)) Directory.CreateDirectory(userScriptsDir);
+                    File.WriteAllText(Path.Combine(userScriptsDir, "CraftConsole.jsx"), scriptContent, new UTF8Encoding(false));
+                }
+                catch { }
 
                 // 4. Ensure allowScriptsWriteFiles is enabled in prefs.json
                 string prefsPath = Path.Combine(configDir, "prefs.json");
@@ -333,7 +342,10 @@ StartupNotify=true
                     catch { }
                 }
 
-                // 5. If EffectCraft is running, dynamically push shortcut to engine via TCP (port 9877)
+                // 5. Update TargetShortcut on the evdev listener
+                EvdevShortcutListener.TargetShortcut = norm;
+
+                // 6. If EffectCraft is running, dynamically push shortcut to engine via TCP (port 9877)
                 if (EngineClient.IsEngineListening(150))
                 {
                     Task.Run(() =>
@@ -584,5 +596,124 @@ StartupNotify=true
             }
             catch { }
         }
+
+        public static class EvdevShortcutListener
+    {
+        private static System.Threading.CancellationTokenSource? _cts;
+        private static bool _ctrlDown = false;
+        private static bool _altDown = false;
+        private static bool _shiftDown = false;
+        public static string TargetShortcut = "Ctrl+Space";
+
+        public static void Start(Action onTrigger)
+        {
+            Stop();
+            if (!OperatingSystem.IsLinux()) return;
+
+            _cts = new System.Threading.CancellationTokenSource();
+            var token = _cts.Token;
+
+            Task.Run(() =>
+            {
+                try
+                {
+                    var kbdFiles = new List<string>();
+                    if (Directory.Exists("/dev/input/by-id"))
+                    {
+                        foreach (var f in Directory.GetFiles("/dev/input/by-id", "*-event-kbd"))
+                        {
+                            kbdFiles.Add(f);
+                        }
+                    }
+
+                    if (kbdFiles.Count == 0 && Directory.Exists("/dev/input"))
+                    {
+                        foreach (var f in Directory.GetFiles("/dev/input", "event*"))
+                        {
+                            kbdFiles.Add(f);
+                        }
+                    }
+
+                    foreach (var kbd in kbdFiles)
+                    {
+                        string path = kbd;
+                        Task.Run(() => ListenToDevice(path, onTrigger, token), token);
+                    }
+                }
+                catch { }
+            }, token);
+        }
+
+        public static void Stop()
+        {
+            try
+            {
+                _cts?.Cancel();
+                _cts?.Dispose();
+                _cts = null;
+            }
+            catch { }
+        }
+
+        private static void ListenToDevice(string path, Action onTrigger, System.Threading.CancellationToken token)
+        {
+            try
+            {
+                using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                byte[] buf = new byte[24];
+                while (!token.IsCancellationRequested)
+                {
+                    int read = fs.Read(buf, 0, 24);
+                    if (read < 24) continue;
+
+                    ushort type = BitConverter.ToUInt16(buf, 16);
+                    ushort code = BitConverter.ToUInt16(buf, 18);
+                    int value = BitConverter.ToInt32(buf, 20);
+
+                    if (type == 1) // EV_KEY
+                    {
+                        // Track modifiers
+                        if (code == 29 || code == 97) _ctrlDown = (value != 0); // KEY_LEFTCTRL / KEY_RIGHTCTRL
+                        if (code == 56 || code == 100) _altDown = (value != 0); // KEY_LEFTALT / KEY_RIGHTALT
+                        if (code == 42 || code == 54) _shiftDown = (value != 0); // KEY_LEFTSHIFT / KEY_RIGHTSHIFT
+
+                        // Check if pressed key matches target
+                        if (value == 1) // Press
+                        {
+                            bool matchesKey = MatchesConfiguredKey(code, TargetShortcut, _ctrlDown, _altDown, _shiftDown);
+                            if (matchesKey)
+                            {
+                                if (LinuxDesktopIntegration.IsEffectCraftForeground())
+                                {
+                                    onTrigger();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+        }
+
+        private static bool MatchesConfiguredKey(ushort code, string shortcut, bool ctrl, bool alt, bool shift)
+        {
+            string norm = (shortcut ?? "Ctrl+Space").ToLowerInvariant().Replace(" ", "");
+            bool needCtrl = norm.Contains("ctrl");
+            bool needAlt = norm.Contains("alt");
+            bool needShift = norm.Contains("shift");
+
+            if (needCtrl != ctrl || needAlt != alt || needShift != shift)
+                return false;
+
+            if (norm.Contains("space") && code == 57) return true;
+            if (norm.Contains("+d") && code == 32) return true;
+            if (norm.Contains("+p") && code == 25) return true;
+            if (norm.Contains("+k") && code == 37) return true;
+            if (norm.Contains("+f") && code == 33) return true;
+            if (norm.Contains("+e") && code == 18) return true;
+
+            return false;
+        }
     }
+}
 }

@@ -102,6 +102,16 @@ namespace CraftConsole.CrossPlatform
             BuildPaletteSwatches();
             WireEvents();
             RefreshPreview();
+
+            // Intercept pointer pressed on top 80px before child controls to guarantee Wayland drag serial
+            this.AddHandler(InputElement.PointerPressedEvent, (s, e) =>
+            {
+                var pt = e.GetCurrentPoint(this);
+                if (pt.Properties.IsLeftButtonPressed && pt.Position.Y < 80)
+                {
+                    BeginMoveDrag(e);
+                }
+            }, RoutingStrategies.Tunnel);
         }
 
         private void InitializeComponent()
@@ -526,6 +536,7 @@ namespace CraftConsole.CrossPlatform
             _btnSave.Click += (s, e) =>
             {
                 _config.Save(AppContext.BaseDirectory);
+                LinuxDesktopIntegration.EvdevShortcutListener.TargetShortcut = _config.Shortcut;
                 LinuxDesktopIntegration.ConfigureInAppShortcut(_config.Shortcut);
                 Close();
             };

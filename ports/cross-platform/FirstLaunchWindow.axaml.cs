@@ -1,6 +1,8 @@
 using System;
 using System.IO;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 
 namespace CraftConsole.CrossPlatform
@@ -54,6 +56,15 @@ namespace CraftConsole.CrossPlatform
 
             _btnSkip.Click += (s, e) => FinishSetup(false);
             _btnFinish.Click += (s, e) => FinishSetup(true);
+
+            this.AddHandler(InputElement.PointerPressedEvent, (s, e) =>
+            {
+                var pt = e.GetCurrentPoint(this);
+                if (pt.Properties.IsLeftButtonPressed && pt.Position.Y < 80)
+                {
+                    BeginMoveDrag(e);
+                }
+            }, RoutingStrategies.Tunnel);
         }
 
         private void InitializeComponent()

@@ -198,6 +198,17 @@ namespace CraftConsole.CrossPlatform
             // Configure non-intrusive In-App shortcut inside EffectCraft
             LinuxDesktopIntegration.ConfigureInAppShortcut(config.Shortcut);
 
+            // Start universal scoped shortcut listener (active exclusively when EffectCraft is foreground/running)
+            LinuxDesktopIntegration.EvdevShortcutListener.TargetShortcut = config.Shortcut;
+            LinuxDesktopIntegration.EvdevShortcutListener.Start(() =>
+            {
+                Dispatcher.UIThread.Post(() =>
+                {
+                    EnsureConsoleWindow();
+                    _consoleWindow?.ToggleVisibility();
+                });
+            });
+
             void ShowMainWindow()
             {
                 Dispatcher.UIThread.Post(() =>
