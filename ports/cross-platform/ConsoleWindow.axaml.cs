@@ -113,15 +113,6 @@ namespace CraftConsole.CrossPlatform
                 _searchBox.Focus();
                 SyncLiveCommands();
             };
-
-            this.AddHandler(InputElement.PointerPressedEvent, (s, e) =>
-            {
-                var pt = e.GetCurrentPoint(this);
-                if (pt.Properties.IsLeftButtonPressed && pt.Position.Y < 44)
-                {
-                    BeginMoveDrag(e);
-                }
-            }, RoutingStrategies.Tunnel);
         }
 
         private void InitializeComponent()
