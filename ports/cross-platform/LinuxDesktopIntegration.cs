@@ -1,11 +1,22 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Text;
+using System.Text.Json;
 
 namespace CraftConsole.CrossPlatform
 {
+    public struct ScreenGeometry
+    {
+        public string Name;
+        public int X;
+        public int Y;
+        public int Width;
+        public int Height;
+    }
+
     public static class LinuxDesktopIntegration
     {
         public static string GetCurrentExecutablePath()
@@ -273,6 +284,160 @@ StartupNotify=true
                 }
             }
             catch { }
+        }
+
+        public static ScreenGeometry GetActiveScreenGeometry()
+        {
+            // Default fallback
+            var def = new ScreenGeometry { Name = "Default", X = 0, Y = 0, Width = 1920, Height = 1080 };
+            if (!OperatingSystem.IsLinux()) return def;
+
+            try
+            {
+                // 1. Query active output name from KWin (e.g. DP-1, HDMI-A-1, eDP-1)
+                string activeOutput = RunCommandOutput("qdbus6", "org.kde.KWin /KWin org.kde.KWin.activeOutputName")?.Trim() ?? "";
+                if (string.IsNullOrEmpty(activeOutput))
+                {
+                    activeOutput = RunCommandOutput("qdbus", "org.kde.KWin /KWin org.kde.KWin.activeOutputName")?.Trim() ?? "";
+                }
+
+                // 2. Query kscreen-doctor -o for output geometries
+                string kscreenOutput = RunCommandOutput("kscreen-doctor", "-o") ?? "";
+                if (!string.IsNullOrEmpty(kscreenOutput))
+                {
+                    var lines = kscreenOutput.Split('\n');
+                    string currentOutput = "";
+                    foreach (var rawLine in lines)
+                    {
+                        string line = rawLine.Trim();
+                        if (line.StartsWith("Output:"))
+                        {
+                            var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                            if (parts.Length >= 3) currentOutput = parts[2];
+                        }
+                        else if (line.StartsWith("Geometry:") && !string.IsNullOrEmpty(currentOutput))
+                        {
+                            // Example: Geometry: 3840,312 1366x768
+                            if (string.IsNullOrEmpty(activeOutput) || string.Equals(currentOutput, activeOutput, StringComparison.OrdinalIgnoreCase))
+                            {
+                                string geomStr = line.Substring("Geometry:".Length).Trim();
+                                var sp = geomStr.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                                if (sp.Length == 2)
+                                {
+                                    var posParts = sp[0].Split(',');
+                                    var sizeParts = sp[1].Split('x');
+                                    if (posParts.Length == 2 && sizeParts.Length == 2 &&
+                                        int.TryParse(posParts[0], out int gx) &&
+                                        int.TryParse(posParts[1], out int gy) &&
+                                        int.TryParse(sizeParts[0], out int gw) &&
+                                        int.TryParse(sizeParts[1], out int gh))
+                                    {
+                                        return new ScreenGeometry { Name = currentOutput, X = gx, Y = gy, Width = gw, Height = gh };
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            return def;
+        }
+
+        public static bool TryGetCursorPosition(out int x, out int y)
+        {
+            x = 0;
+            y = 0;
+            if (!OperatingSystem.IsLinux()) return false;
+
+            try
+            {
+                // Run a fast KWin script snippet to query workspace.cursorPos
+                string script = "var p = workspace.cursorPos;\nconsole.error('CRAFT_CURSOR:' + p.x + ',' + p.y);\n";
+                string tmpFile = Path.Combine(Path.GetTempPath(), "craft_cur_" + Guid.NewGuid().ToString("N") + ".js");
+                File.WriteAllText(tmpFile, script);
+
+                try
+                {
+                    string scriptName = "craft_cur_query";
+                    RunCommandOutput("qdbus6", $"org.kde.KWin /Scripting loadScript \"{tmpFile}\" \"{scriptName}\"");
+                    RunCommandOutput("qdbus6", "org.kde.KWin /Scripting start");
+                    RunCommandOutput("qdbus6", $"org.kde.KWin /Scripting unloadScript \"{scriptName}\"");
+
+                    // Read journalctl last message for CRAFT_CURSOR
+                    string logOut = RunCommandOutput("journalctl", "--user -b -n 10 -g CRAFT_CURSOR") ?? "";
+                    if (logOut.Contains("CRAFT_CURSOR:"))
+                    {
+                        int idx = logOut.LastIndexOf("CRAFT_CURSOR:");
+                        string sub = logOut.Substring(idx + "CRAFT_CURSOR:".Length).Trim();
+                        int nl = sub.IndexOfAny(new[] { '\n', '\r', ' ' });
+                        if (nl >= 0) sub = sub.Substring(0, nl);
+                        var parts = sub.Split(',');
+                        if (parts.Length == 2 && int.TryParse(parts[0], out int cx) && int.TryParse(parts[1], out int cy))
+                        {
+                            x = cx;
+                            y = cy;
+                            return true;
+                        }
+                    }
+                }
+                finally
+                {
+                    if (File.Exists(tmpFile)) File.Delete(tmpFile);
+                }
+            }
+            catch { }
+
+            // Secondary check: Focused window geometry from KWin
+            try
+            {
+                string winInfo = RunCommandOutput("qdbus6", "org.kde.KWin /KWin org.kde.KWin.queryWindowInfo") ?? "";
+                if (!string.IsNullOrEmpty(winInfo))
+                {
+                    int wx = 0, wy = 0, ww = 0, wh = 0;
+                    foreach (var line in winInfo.Split('\n'))
+                    {
+                        var trimmed = line.Trim();
+                        if (trimmed.StartsWith("x:") && int.TryParse(trimmed.Substring(2).Trim(), out int valX)) wx = valX;
+                        if (trimmed.StartsWith("y:") && int.TryParse(trimmed.Substring(2).Trim(), out int valY)) wy = valY;
+                        if (trimmed.StartsWith("width:") && int.TryParse(trimmed.Substring(6).Trim(), out int valW)) ww = valW;
+                        if (trimmed.StartsWith("height:") && int.TryParse(trimmed.Substring(7).Trim(), out int valH)) wh = valH;
+                    }
+                    if (ww > 0 && wh > 0)
+                    {
+                        x = wx + (ww / 2);
+                        y = wy + 200;
+                        return true;
+                    }
+                }
+            }
+            catch { }
+
+            return false;
+        }
+
+        private static string? RunCommandOutput(string cmd, string args)
+        {
+            try
+            {
+                var psi = new ProcessStartInfo(cmd, args)
+                {
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+                using var p = Process.Start(psi);
+                if (p == null) return null;
+                string output = p.StandardOutput.ReadToEnd();
+                p.WaitForExit(1000);
+                return output;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         private static void SetExecutablePermission(string filePath)

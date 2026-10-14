@@ -1,11 +1,14 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Shapes;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -15,9 +18,11 @@ namespace CraftConsole.CrossPlatform
     public partial class ConsoleWindow : Window
     {
         private TextBox _searchBox;
-        private ListBox _resultsListBox;
         private Border _divider;
+        private ScrollViewer _resultsScrollViewer;
+        private StackPanel _resultsStack;
         private TextBlock _statusTextBlock;
+
         private Button _btnSnapshot;
         private Button _btnPresets;
         private Button _btnExport;
@@ -25,16 +30,27 @@ namespace CraftConsole.CrossPlatform
         private Button _btnBrand;
 
         private List<EffectItem> _catalog = new List<EffectItem>();
-        private ObservableCollection<EffectItem> _filtered = new ObservableCollection<EffectItem>();
+        private List<DisplayRow> _currentRows = new List<DisplayRow>();
+        private int _selectedIndex = -1;
+        private DispatcherTimer _debounceTimer;
+
         public bool IsTerminating { get; set; } = false;
+        private bool _isOpening = false;
+
+        private static readonly SolidColorBrush _brushFavStar = new SolidColorBrush(Color.FromRgb(255, 215, 0));
+        private static readonly SolidColorBrush _brushUnfavStar = new SolidColorBrush(Color.FromRgb(95, 95, 105));
+        private static readonly SolidColorBrush _brushTextDark = new SolidColorBrush(Color.FromRgb(225, 225, 225));
+        private static readonly SolidColorBrush _brushExtraDark = new SolidColorBrush(Color.FromRgb(125, 125, 130));
+        private static readonly SolidColorBrush _brushSelDark = new SolidColorBrush(Color.FromRgb(0, 122, 204));
 
         public ConsoleWindow()
         {
             InitializeComponent();
 
             _searchBox = this.FindControl<TextBox>("SearchBox")!;
-            _resultsListBox = this.FindControl<ListBox>("ResultsListBox")!;
             _divider = this.FindControl<Border>("Divider")!;
+            _resultsScrollViewer = this.FindControl<ScrollViewer>("ResultsScrollViewer")!;
+            _resultsStack = this.FindControl<StackPanel>("ResultsStack")!;
             _statusTextBlock = this.FindControl<TextBlock>("StatusTextBlock")!;
 
             _btnSnapshot = this.FindControl<Button>("BtnSnapshot")!;
@@ -43,20 +59,23 @@ namespace CraftConsole.CrossPlatform
             _btnSettings = this.FindControl<Button>("BtnSettings")!;
             _btnBrand = this.FindControl<Button>("BtnBrand")!;
 
-            _resultsListBox.ItemsSource = _filtered;
-
-            // Initialize catalog
             _catalog = Catalog.GetDefaultCatalog();
-            RefreshFavoritesState();
+            RefreshFavoritesCache();
 
-            // Wire event handlers
-            _searchBox.TextChanged += (s, e) => FilterItems();
+            _debounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(30) };
+            _debounceTimer.Tick += (s, e) =>
+            {
+                _debounceTimer.Stop();
+                PerformSearch();
+            };
+
+            _searchBox.TextChanged += (s, e) =>
+            {
+                _debounceTimer.Stop();
+                _debounceTimer.Start();
+            };
             _searchBox.KeyDown += OnSearchBoxKeyDown;
 
-            _resultsListBox.DoubleTapped += (s, e) => ApplySelectedItem();
-            _resultsListBox.KeyDown += OnListBoxKeyDown;
-
-            // Action buttons
             _btnSnapshot.Click += (s, e) => ExecuteSnapshot();
             _btnPresets.Click += (s, e) =>
             {
@@ -71,9 +90,6 @@ namespace CraftConsole.CrossPlatform
                 try { EngineClient.SendTcpCommand("{\"id\":99,\"method\":\"ui.focus\",\"params\":{}}"); } catch { }
             };
 
-            // Intercept star clicks inside listbox
-            AddHandler(Button.ClickEvent, OnItemStarClicked, RoutingStrategies.Bubble);
-
             Closing += (s, e) =>
             {
                 if (!IsTerminating)
@@ -86,6 +102,7 @@ namespace CraftConsole.CrossPlatform
             KeyDown += OnWindowKeyDown;
             Deactivated += (s, e) =>
             {
+                if (_isOpening) return;
                 Hide();
             };
 
@@ -94,6 +111,11 @@ namespace CraftConsole.CrossPlatform
                 _searchBox.Focus();
                 SyncLiveCommands();
             };
+        }
+
+        private void InitializeComponent()
+        {
+            AvaloniaXamlLoader.Load(this);
         }
 
         public void ToggleVisibility()
@@ -106,21 +128,50 @@ namespace CraftConsole.CrossPlatform
                 }
                 else
                 {
+                    _isOpening = true;
+                    PositionAtCursorOrActiveScreen();
                     Show();
                     Activate();
                     _searchBox.Text = "";
-                    FilterItems();
+                    _statusTextBlock.IsVisible = false;
+                    PerformSearch();
                     _searchBox.Focus();
+                    _isOpening = false;
                 }
             });
         }
 
-        private void InitializeComponent()
+        public void PositionAtCursorOrActiveScreen()
         {
-            AvaloniaXamlLoader.Load(this);
+            var screen = LinuxDesktopIntegration.GetActiveScreenGeometry();
+            bool hasCur = LinuxDesktopIntegration.TryGetCursorPosition(out int curX, out int curY);
+
+            double targetLeft;
+            double targetTop;
+
+            if (hasCur)
+            {
+                // Exact formula matching Windows src/Launcher.cs:L2309-2323
+                targetLeft = curX - (this.Width / 2.0);
+                targetTop = curY - 22; // Align search input box with cursor height
+            }
+            else
+            {
+                // Center precisely on the active monitor where mouse/window is focused
+                targetLeft = screen.X + (screen.Width - this.Width) / 2.0;
+                targetTop = screen.Y + 220;
+            }
+
+            // Clamp within active monitor boundaries so it never overflows off-screen
+            if (targetLeft < screen.X + 10) targetLeft = screen.X + 10;
+            if (targetLeft + this.Width > screen.X + screen.Width - 10) targetLeft = screen.X + screen.Width - this.Width - 10;
+            if (targetTop < screen.Y + 10) targetTop = screen.Y + 10;
+            if (targetTop + 330 > screen.Y + screen.Height - 10) targetTop = screen.Y + screen.Height - 330 - 10;
+
+            this.Position = new PixelPoint((int)targetLeft, (int)targetTop);
         }
 
-        private void RefreshFavoritesState()
+        private void RefreshFavoritesCache()
         {
             FavoritesStorage.EnsureLoaded();
             foreach (var item in _catalog)
@@ -129,72 +180,290 @@ namespace CraftConsole.CrossPlatform
             }
         }
 
-        private void FilterItems()
+        private void PerformSearch()
         {
             string query = (_searchBox.Text ?? "").Trim();
-
             if (string.IsNullOrEmpty(query))
             {
-                _filtered.Clear();
+                var cfg = SplashConfig.Load();
+                if (cfg.ShowFavoritesOnOpen)
+                {
+                    ShowFavoritesList();
+                    return;
+                }
+
                 _divider.IsVisible = false;
-                _resultsListBox.IsVisible = false;
+                _resultsScrollViewer.IsVisible = false;
+                _resultsStack.Children.Clear();
+                _currentRows.Clear();
+                _selectedIndex = -1;
                 return;
             }
 
-            var results = new List<EffectItem>();
-            string lowerQuery = query.ToLowerInvariant();
+            UpdateFilter(query);
+        }
 
-            // Prefix filters matching Windows stable build
-            if (lowerQuery.StartsWith("@preset"))
+        private void ShowFavoritesList()
+        {
+            _resultsStack.Children.Clear();
+            _currentRows.Clear();
+            _selectedIndex = -1;
+
+            var favMatches = _catalog.Where(x => x.IsFavorite).ToList();
+            if (favMatches.Count > 0)
             {
-                string sub = lowerQuery.Substring(Math.Min(7, lowerQuery.Length)).Trim();
-                results.AddRange(_catalog.Where(x => x.Kind == ConsoleItemKind.Preset && (string.IsNullOrEmpty(sub) || x.LowerName.Contains(sub))));
-            }
-            else if (lowerQuery.StartsWith("@fav"))
-            {
-                string sub = lowerQuery.Substring(Math.Min(4, lowerQuery.Length)).Trim();
-                results.AddRange(_catalog.Where(x => x.IsFavorite && (string.IsNullOrEmpty(sub) || x.LowerName.Contains(sub))));
-            }
-            else if (lowerQuery.StartsWith("@layer"))
-            {
-                string sub = lowerQuery.Substring(Math.Min(6, lowerQuery.Length)).Trim();
-                results.AddRange(_catalog.Where(x => x.Kind == ConsoleItemKind.Layer && (string.IsNullOrEmpty(sub) || x.LowerName.Contains(sub))));
-            }
-            else if (lowerQuery.StartsWith("@cmd"))
-            {
-                string sub = lowerQuery.Substring(Math.Min(4, lowerQuery.Length)).Trim();
-                results.AddRange(_catalog.Where(x => x.Kind == ConsoleItemKind.Command && (string.IsNullOrEmpty(sub) || x.LowerName.Contains(sub))));
+                AddCategoryHeader("★ Favorites & Quick Access (Enter to Apply • Click ★ or Ctrl+D to unpin)", Color.FromRgb(255, 215, 0));
+                foreach (var fav in favMatches)
+                {
+                    AddItemRow(fav);
+                }
+
+                _divider.IsVisible = true;
+                _resultsScrollViewer.IsVisible = true;
+
+                for (int i = 0; i < _currentRows.Count; i++)
+                {
+                    if (!_currentRows[i].IsHeader)
+                    {
+                        SetSelectedIndex(i);
+                        break;
+                    }
+                }
             }
             else
             {
-                // General smart search
-                foreach (var item in _catalog)
-                {
-                    if (item.LowerName.Contains(lowerQuery) ||
-                        item.LowerCategory.Contains(lowerQuery) ||
-                        (!string.IsNullOrEmpty(item.LowerKeywords) && item.LowerKeywords.Contains(lowerQuery)))
-                    {
-                        results.Add(item);
-                    }
-                }
+                _divider.IsVisible = false;
+                _resultsScrollViewer.IsVisible = false;
+            }
+        }
 
-                // Rank favorites and exact matches first
-                results = results.OrderByDescending(x => x.LowerName.StartsWith(lowerQuery))
-                                 .ThenByDescending(x => x.IsFavorite)
-                                 .Take(60)
-                                 .ToList();
+        private void UpdateFilter(string query)
+        {
+            _resultsStack.Children.Clear();
+            _currentRows.Clear();
+            _selectedIndex = -1;
+
+            string cleanLower = query.ToLowerInvariant();
+            var matches = new List<EffectItem>();
+
+            // Prefix routing
+            if (cleanLower.StartsWith("@preset"))
+            {
+                string sub = cleanLower.Substring(Math.Min(7, cleanLower.Length)).Trim();
+                matches = _catalog.Where(x => x.Kind == ConsoleItemKind.Preset && (string.IsNullOrEmpty(sub) || x.LowerName.Contains(sub))).ToList();
+                AddCategoryHeader("Animation Presets (" + matches.Count + ")", Color.FromRgb(0, 210, 255));
+            }
+            else if (cleanLower.StartsWith("@fav"))
+            {
+                string sub = cleanLower.Substring(Math.Min(4, cleanLower.Length)).Trim();
+                matches = _catalog.Where(x => x.IsFavorite && (string.IsNullOrEmpty(sub) || x.LowerName.Contains(sub))).ToList();
+                AddCategoryHeader("★ Favorites (" + matches.Count + ")", Color.FromRgb(255, 215, 0));
+            }
+            else if (cleanLower.StartsWith("@layer"))
+            {
+                string sub = cleanLower.Substring(Math.Min(6, cleanLower.Length)).Trim();
+                matches = _catalog.Where(x => x.Kind == ConsoleItemKind.Layer && (string.IsNullOrEmpty(sub) || x.LowerName.Contains(sub))).ToList();
+                AddCategoryHeader("New Layers (" + matches.Count + ")", Color.FromRgb(255, 107, 74));
+            }
+            else if (cleanLower.StartsWith("@cmd"))
+            {
+                string sub = cleanLower.Substring(Math.Min(4, cleanLower.Length)).Trim();
+                matches = _catalog.Where(x => x.Kind == ConsoleItemKind.Command && (string.IsNullOrEmpty(sub) || x.LowerName.Contains(sub))).ToList();
+                AddCategoryHeader("Commands (" + matches.Count + ")", Color.FromRgb(78, 123, 251));
+            }
+            else
+            {
+                // General smart search: partitioned favorites first, then effects & commands
+                var favs = _catalog.Where(x => x.IsFavorite && (x.LowerName.Contains(cleanLower) || x.LowerKeywords.Contains(cleanLower))).ToList();
+                var others = _catalog.Where(x => !x.IsFavorite && (x.LowerName.Contains(cleanLower) || x.LowerKeywords.Contains(cleanLower))).ToList();
+                matches.AddRange(favs);
+                matches.AddRange(others);
             }
 
-            _filtered.Clear();
-            foreach (var r in results) _filtered.Add(r);
+            int added = 0;
+            const int MAX_ROWS = 28;
 
-            bool hasResults = _filtered.Count > 0;
-            _divider.IsVisible = hasResults;
-            _resultsListBox.IsVisible = hasResults;
-
-            if (hasResults)
+            foreach (var item in matches)
             {
-                _resultsListBox.SelectedIndex = 0;
+                if (added++ >= MAX_ROWS) break;
+                AddItemRow(item);
+            }
+
+            if (_currentRows.Count > 0)
+            {
+                _divider.IsVisible = true;
+                _resultsScrollViewer.IsVisible = true;
+                for (int i = 0; i < _currentRows.Count; i++)
+                {
+                    if (!_currentRows[i].IsHeader)
+                    {
+                        SetSelectedIndex(i);
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                _divider.IsVisible = false;
+                _resultsScrollViewer.IsVisible = false;
+            }
+        }
+
+        private void AddCategoryHeader(string text, Color color)
+        {
+            var headerBorder = new Border
+            {
+                Height = 22,
+                Margin = new Thickness(14, 4, 14, 2),
+                Background = Brushes.Transparent
+            };
+            var headerText = new TextBlock
+            {
+                Text = text,
+                Foreground = new SolidColorBrush(color),
+                FontSize = 10.5,
+                FontWeight = FontWeight.Bold,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            headerBorder.Child = headerText;
+
+            _resultsStack.Children.Add(headerBorder);
+            _currentRows.Add(new DisplayRow { IsHeader = true, Container = headerBorder, Label = headerText });
+        }
+
+        private void AddItemRow(EffectItem item)
+        {
+            int rowIndex = _currentRows.Count;
+
+            var rowBorder = new Border
+            {
+                Height = 27,
+                Margin = new Thickness(4, 1, 4, 1),
+                CornerRadius = new CornerRadius(3),
+                Background = Brushes.Transparent,
+                Cursor = new Cursor(StandardCursorType.Hand)
+            };
+
+            var rowGrid = new Grid();
+            rowGrid.ColumnDefinitions.Add(new ColumnDefinition(1, GridUnitType.Star));
+            rowGrid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+            rowGrid.ColumnDefinitions.Add(new ColumnDefinition(28, GridUnitType.Pixel));
+
+            var label = new TextBlock
+            {
+                Text = item.Name,
+                Foreground = _brushTextDark,
+                FontSize = 13.0,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(18, 0, 10, 0),
+                TextTrimming = TextTrimming.CharacterEllipsis
+            };
+            Grid.SetColumn(label, 0);
+            rowGrid.Children.Add(label);
+
+            TextBlock? extraLabel = null;
+            if (!string.IsNullOrEmpty(item.Extra) || !string.IsNullOrEmpty(item.Category))
+            {
+                extraLabel = new TextBlock
+                {
+                    Text = !string.IsNullOrEmpty(item.Extra) ? item.Extra : item.Category,
+                    Foreground = _brushExtraDark,
+                    FontSize = 11.0,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 12, 0)
+                };
+                Grid.SetColumn(extraLabel, 1);
+                rowGrid.Children.Add(extraLabel);
+            }
+
+            var starBtn = new TextBlock
+            {
+                Text = item.IsFavorite ? "★" : "☆",
+                Foreground = item.IsFavorite ? _brushFavStar : _brushUnfavStar,
+                FontSize = 13.0,
+                FontWeight = item.IsFavorite ? FontWeight.Bold : FontWeight.Normal,
+                Width = 24,
+                Height = 24,
+                TextAlignment = TextAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Cursor = new Cursor(StandardCursorType.Hand)
+            };
+            ToolTip.SetTip(starBtn, item.IsFavorite ? "★ Favorited (Click to unpin)" : "☆ Click to pin to Favorites (or Ctrl+D)");
+
+            starBtn.PointerPressed += (s, e) =>
+            {
+                e.Handled = true;
+                ToggleItemFavorite(item, starBtn);
+            };
+            Grid.SetColumn(starBtn, 2);
+            rowGrid.Children.Add(starBtn);
+
+            rowBorder.Child = rowGrid;
+
+            var rowObj = new DisplayRow
+            {
+                IsHeader = false,
+                Item = item,
+                Container = rowBorder,
+                Label = label,
+                ExtraLabel = extraLabel
+            };
+
+            rowBorder.PointerEntered += (s, e) => SetSelectedIndex(rowIndex);
+            rowBorder.PointerPressed += (s, e) => ApplySelectedItem(rowObj.Item);
+
+            _resultsStack.Children.Add(rowBorder);
+            _currentRows.Add(rowObj);
+        }
+
+        private void ToggleItemFavorite(EffectItem item, TextBlock starBtn)
+        {
+            FavoritesStorage.ToggleFavorite(item.Name, item.Id);
+            item.IsFavorite = FavoritesStorage.IsFavorite(item.Name, item.Id);
+
+            starBtn.Text = item.IsFavorite ? "★" : "☆";
+            starBtn.Foreground = item.IsFavorite ? _brushFavStar : _brushUnfavStar;
+            starBtn.FontWeight = item.IsFavorite ? FontWeight.Bold : FontWeight.Normal;
+            ToolTip.SetTip(starBtn, item.IsFavorite ? "★ Favorited (Click to unpin)" : "☆ Click to pin to Favorites (or Ctrl+D)");
+
+            ShowToast(item.IsFavorite ? $"★ Added '{item.Name}' to Favorites" : $"☆ Removed '{item.Name}' from Favorites");
+
+            if (string.IsNullOrEmpty((_searchBox.Text ?? "").Trim()))
+            {
+                ShowFavoritesList();
+            }
+        }
+
+        private void SetSelectedIndex(int index)
+        {
+            if (_selectedIndex >= 0 && _selectedIndex < _currentRows.Count)
+            {
+                var oldRow = _currentRows[_selectedIndex];
+                if (!oldRow.IsHeader && oldRow.Container is Border b)
+                {
+                    b.Background = Brushes.Transparent;
+                    if (oldRow.Label != null)
+                    {
+                        oldRow.Label.Foreground = _brushTextDark;
+                        oldRow.Label.FontWeight = FontWeight.Normal;
+                    }
+                }
+            }
+
+            _selectedIndex = index;
+
+            if (_selectedIndex >= 0 && _selectedIndex < _currentRows.Count)
+            {
+                var newRow = _currentRows[_selectedIndex];
+                if (!newRow.IsHeader && newRow.Container is Border b)
+                {
+                    b.Background = _brushSelDark;
+                    if (newRow.Label != null)
+                    {
+                        newRow.Label.Foreground = Brushes.White;
+                        newRow.Label.FontWeight = FontWeight.SemiBold;
+                    }
+                }
             }
         }
 
@@ -202,206 +471,132 @@ namespace CraftConsole.CrossPlatform
         {
             if (e.Key == Key.Down)
             {
-                if (_filtered.Count > 0)
-                {
-                    _resultsListBox.Focus();
-                    if (_resultsListBox.SelectedIndex < _filtered.Count - 1)
-                        _resultsListBox.SelectedIndex++;
-                }
                 e.Handled = true;
+                MoveSelection(1);
             }
             else if (e.Key == Key.Up)
             {
-                if (_filtered.Count > 0)
-                {
-                    _resultsListBox.Focus();
-                    if (_resultsListBox.SelectedIndex > 0)
-                        _resultsListBox.SelectedIndex--;
-                }
                 e.Handled = true;
+                MoveSelection(-1);
             }
             else if (e.Key == Key.Enter)
             {
-                ApplySelectedItem();
                 e.Handled = true;
+                if (_selectedIndex >= 0 && _selectedIndex < _currentRows.Count)
+                {
+                    ApplySelectedItem(_currentRows[_selectedIndex].Item);
+                }
             }
-            else if (e.Key == Key.Escape || (e.Key == Key.Space && (e.KeyModifiers & KeyModifiers.Control) != 0))
+            else if (e.Key == Key.Escape)
             {
+                e.Handled = true;
                 Hide();
-                e.Handled = true;
             }
-        }
-
-        private void OnListBoxKeyDown(object? sender, KeyEventArgs e)
-        {
-            if (e.Key == Key.Enter)
+            else if (e.Key == Key.D && (e.KeyModifiers & KeyModifiers.Control) != 0)
             {
-                ApplySelectedItem();
                 e.Handled = true;
-            }
-            else if (e.Key == Key.Up && _resultsListBox.SelectedIndex == 0)
-            {
-                _searchBox.Focus();
-                e.Handled = true;
-            }
-            else if (e.Key == Key.Escape || (e.Key == Key.Space && (e.KeyModifiers & KeyModifiers.Control) != 0))
-            {
-                Hide();
-                e.Handled = true;
-            }
-            else if (e.Key == Key.F && (e.KeyModifiers & KeyModifiers.Control) != 0)
-            {
-                ToggleSelectedFavorite();
-                e.Handled = true;
+                if (_selectedIndex >= 0 && _selectedIndex < _currentRows.Count && _currentRows[_selectedIndex].Item != null)
+                {
+                    var item = _currentRows[_selectedIndex].Item!;
+                    FavoritesStorage.ToggleFavorite(item.Name, item.Id);
+                    item.IsFavorite = FavoritesStorage.IsFavorite(item.Name, item.Id);
+                    ShowToast(item.IsFavorite ? $"★ Added '{item.Name}' to Favorites" : $"☆ Removed '{item.Name}' from Favorites");
+                    PerformSearch();
+                }
             }
         }
 
         private void OnWindowKeyDown(object? sender, KeyEventArgs e)
         {
-            if (e.Key == Key.Escape || (e.Key == Key.Space && (e.KeyModifiers & KeyModifiers.Control) != 0))
+            if (e.Key == Key.Escape)
             {
                 Hide();
-                e.Handled = true;
-            }
-            else if (e.Key == Key.F && (e.KeyModifiers & KeyModifiers.Control) != 0)
-            {
-                ToggleSelectedFavorite();
-                e.Handled = true;
             }
         }
 
-        private void OnItemStarClicked(object? sender, RoutedEventArgs e)
+        private void MoveSelection(int delta)
         {
-            if (e.Source is Button btn && btn.Classes.Contains("fav-star") && btn.Tag is EffectItem item)
+            if (_currentRows.Count == 0) return;
+
+            int target = _selectedIndex + delta;
+            while (target >= 0 && target < _currentRows.Count && _currentRows[target].IsHeader)
             {
-                FavoritesStorage.ToggleFavorite(item.Name, item.Id);
-                item.IsFavorite = !item.IsFavorite;
+                target += delta;
+            }
 
-                int idx = _filtered.IndexOf(item);
-                if (idx >= 0)
-                {
-                    _filtered[idx] = item;
-                }
-
-                ShowToast(item.IsFavorite ? $"★ Added {item.Name} to favorites" : $"Removed {item.Name} from favorites");
-                e.Handled = true;
+            if (target >= 0 && target < _currentRows.Count)
+            {
+                SetSelectedIndex(target);
             }
         }
 
-        private void ToggleSelectedFavorite()
+        private async void ApplySelectedItem(EffectItem? item)
         {
-            if (_resultsListBox.SelectedItem is EffectItem item)
-            {
-                FavoritesStorage.ToggleFavorite(item.Name, item.Id);
-                item.IsFavorite = !item.IsFavorite;
+            if (item == null) return;
 
-                int idx = _filtered.IndexOf(item);
-                if (idx >= 0)
-                {
-                    _filtered[idx] = item;
-                }
-
-                ShowToast(item.IsFavorite ? $"★ Added {item.Name} to favorites" : $"Removed {item.Name} from favorites");
-            }
-        }
-
-        private async void ApplySelectedItem()
-        {
-            if (_resultsListBox.SelectedItem is not EffectItem item) return;
-
-            ShowToast($"Applying {item.Name}...", "#00D2FF");
-
-            var (success, message) = await EngineClient.ApplyItemAsync(item);
-
+            var (success, msg) = await EngineClient.ApplyItemAsync(item);
             if (success)
             {
-                ShowToast($"✓ {item.Name} applied", "#10B981");
-                await Task.Delay(250);
                 Hide();
             }
             else
             {
-                ShowToast($"⚠️ {message}", "#F59E0B");
+                ShowToast(msg);
             }
-        }
-
-        private void ShowToast(string message, string hexColor = "#00C8FF")
-        {
-            _statusTextBlock.Text = message;
-            _statusTextBlock.Foreground = new SolidColorBrush(Color.Parse(hexColor));
-            _statusTextBlock.IsVisible = true;
         }
 
         private void ExecuteSnapshot()
         {
-            ShowToast("Capturing viewport frame...", "#00D2FF");
-            Task.Run(() =>
-            {
-                try
-                {
-                    string? res = EngineClient.SendTcpCommand("{\"id\":10,\"method\":\"ui.menu.invoke\",\"params\":{\"id\":\"edit.copyMerged\",\"params\":{}}}");
-                    Dispatcher.UIThread.Post(() => ShowToast("✓ Frame copied to clipboard", "#10B981"));
-                }
-                catch
-                {
-                    Dispatcher.UIThread.Post(() => ShowToast("⚠️ Could not capture snapshot", "#F59E0B"));
-                }
-            });
+            string? res = EngineClient.SendTcpCommand("{\"id\":20,\"method\":\"viewport.snapshot\",\"params\":{}}");
+            ShowToast(!string.IsNullOrEmpty(res) ? "Snapshot captured and copied to clipboard" : "EffectCraft engine not responding");
         }
 
         private void ExecuteExportPng()
         {
-            ShowToast("Exporting PNG frame...", "#00D2FF");
-            Task.Run(() =>
-            {
-                try
-                {
-                    EngineClient.SendTcpCommand("{\"id\":10,\"method\":\"ui.menu.invoke\",\"params\":{\"id\":\"composition.saveFrameAs\",\"params\":{}}}");
-                    Dispatcher.UIThread.Post(() => ShowToast("✓ Export dialog opened", "#10B981"));
-                }
-                catch
-                {
-                    Dispatcher.UIThread.Post(() => ShowToast("⚠️ Could not export frame", "#F59E0B"));
-                }
-            });
+            string? res = EngineClient.SendTcpCommand("{\"id\":21,\"method\":\"render.export_png\",\"params\":{}}");
+            ShowToast(!string.IsNullOrEmpty(res) ? "Current frame rendered to PNG" : "EffectCraft engine not responding");
         }
 
         private void OpenSettings()
         {
             Hide();
-            var win = new SettingsWindow();
-            win.Show();
+            var settings = new SettingsWindow();
+            settings.Show();
+        }
+
+        private void ShowToast(string message)
+        {
+            _statusTextBlock.Text = message;
+            _statusTextBlock.IsVisible = true;
+            Task.Delay(3000).ContinueWith(_ =>
+            {
+                Dispatcher.UIThread.Post(() => _statusTextBlock.IsVisible = false);
+            });
         }
 
         private void SyncLiveCommands()
         {
-            EngineClient.SyncLiveMenuItems(discovered =>
+            try
             {
-                Dispatcher.UIThread.Post(() =>
+                EngineClient.SyncLiveMenuItems(liveItems =>
                 {
-                    int addedCount = 0;
-                    foreach (var newItem in discovered)
+                    if (liveItems != null && liveItems.Count > 0)
                     {
-                        int existingIdx = _catalog.FindIndex(x => x.Id == newItem.Id);
-                        if (existingIdx >= 0)
+                        Dispatcher.UIThread.Post(() =>
                         {
-                            _catalog[existingIdx].Name = newItem.Name;
-                            if (!string.IsNullOrEmpty(newItem.Extra))
-                                _catalog[existingIdx].Extra = newItem.Extra;
-                        }
-                        else
-                        {
-                            _catalog.Add(newItem);
-                            addedCount++;
-                        }
-                    }
-
-                    if (addedCount > 0 && !string.IsNullOrEmpty(_searchBox.Text))
-                    {
-                        FilterItems();
+                            foreach (var it in liveItems)
+                            {
+                                if (!_catalog.Any(c => c.Id == it.Id))
+                                {
+                                    _catalog.Add(it);
+                                }
+                            }
+                            RefreshFavoritesCache();
+                        });
                     }
                 });
-            });
+            }
+            catch { }
         }
     }
 }

@@ -1,174 +1,536 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="CraftConsole.CrossPlatform.SettingsWindow"
-        Title="Settings"
-        Width="580" Height="620"
-        WindowStartupLocation="CenterOwner"
+        Title="Craft Console — Studio Customizer &amp; Preferences"
+        Width="1040" Height="750"
+        MinWidth="920" MinHeight="660"
+        WindowStartupLocation="CenterScreen"
         SystemDecorations="None"
-        CanResize="False"
+        CanResize="True"
         Background="Transparent"
-        Topmost="True">
+        Topmost="False">
 
-    <Border CornerRadius="16"
+    <Window.Styles>
+        <Style Selector="ScrollBar:vertical">
+            <Setter Property="Width" Value="8" />
+        </Style>
+        <Style Selector="ScrollBar:vertical /template/ Thumb">
+            <Setter Property="Background" Value="#404048" />
+            <Setter Property="CornerRadius" Value="4" />
+        </Style>
+        <Style Selector="ScrollBar:vertical /template/ Thumb:pointerover">
+            <Setter Property="Background" Value="#606070" />
+        </Style>
+    </Window.Styles>
+
+    <!-- Outer Window Chrome Border (Matching Windows Studio Customizer) -->
+    <Border CornerRadius="12"
             Background="#141418"
-            BorderBrush="#2C2C3A"
-            BorderThickness="1.2"
-            BoxShadow="0 14 36 0 #70000000"
+            BorderBrush="#2E2E38"
+            BorderThickness="1"
+            BoxShadow="0 14 38 0 #90000000"
             ClipToBounds="True">
+        
         <Grid RowDefinitions="Auto,*,Auto" Margin="24">
             
-            <!-- Header -->
-            <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10">
-                    <TextBlock Text="⚙" FontSize="18" Foreground="#00D2FF" VerticalAlignment="Center" />
-                    <TextBlock Text="Console &amp; Studio Settings" FontSize="18" FontWeight="SemiBold" Foreground="#FFFFFF" VerticalAlignment="Center" />
+            <!-- ROW 0: Top Header & Segmented Tabs -->
+            <Grid Grid.Row="0" Margin="0,0,0,16" ColumnDefinitions="*,Auto">
+                
+                <!-- Title & Subtitle Header -->
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                    <TextBlock Text="EffectCraft Studio &amp; Preferences"
+                               FontSize="22"
+                               FontWeight="Bold"
+                               Foreground="#FFFFFF" />
+                    <TextBlock Text="Customize startup aesthetics, artwork and video, typography, and extension shortcuts."
+                               FontSize="12"
+                               Foreground="#96969B"
+                               Margin="0,2,0,0" />
                 </StackPanel>
-                <Button x:Name="BtnCloseTop" Grid.Column="1" Background="Transparent" BorderThickness="0" Content="✕" Foreground="#7A7A8E" FontSize="14" Cursor="Hand" />
+
+                <!-- Modern Segmented Tab Bar -->
+                <Border Grid.Column="1"
+                        Background="#1C1C21"
+                        BorderBrush="#303038"
+                        BorderThickness="1"
+                        CornerRadius="7"
+                        Padding="3"
+                        VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <Button x:Name="TabBtnVisual"
+                                Content="Splash &amp; Visuals"
+                                FontSize="12"
+                                FontWeight="SemiBold"
+                                Foreground="#FFFFFF"
+                                Background="#2E2E38"
+                                BorderThickness="0"
+                                CornerRadius="5"
+                                Padding="16,7"
+                                Cursor="Hand" />
+                        <Button x:Name="TabBtnPlugins"
+                                Content="Extensions &amp; Plug-ins"
+                                FontSize="12"
+                                FontWeight="Normal"
+                                Foreground="#A5A5AC"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                CornerRadius="5"
+                                Padding="16,7"
+                                Cursor="Hand" />
+                    </StackPanel>
+                </Border>
             </Grid>
 
-            <!-- Settings Content -->
-            <ScrollViewer Grid.Row="1">
-                <StackPanel Spacing="14">
-
-                    <!-- 1. Splash Screen Style & Visuals -->
-                    <Border Background="#191922" CornerRadius="10" Padding="14,12" BorderBrush="#242432" BorderThickness="1">
+            <!-- ROW 1: Active Tab Body -->
+            <Grid Grid.Row="1">
+                
+                <!-- VIEW 1: Splash & Visuals (Book-split layout: Left=Controls, Right=Scaled Stage) -->
+                <Grid x:Name="ViewVisual" ColumnDefinitions="450,20,*">
+                    
+                    <!-- LEFT PAGE: Scrollable Inspector Controls (450px) -->
+                    <ScrollViewer Grid.Column="0"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  Padding="0,0,10,0">
                         <StackPanel Spacing="10">
-                            <TextBlock Text="SPLASH SCREEN &amp; ARTWORK" Foreground="#00D2FF" FontSize="11" FontWeight="SemiBold" LetterSpacing="0.5" />
-                            
-                            <!-- Style Dropdown -->
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="Visual Style:" Foreground="#C0C0D0" FontSize="12" />
-                                <ComboBox x:Name="CbSplashStyle"
-                                          HorizontalAlignment="Stretch"
-                                          Background="#121217"
-                                          Foreground="#FFFFFF"
-                                          BorderBrush="#2C2C3D"
-                                          CornerRadius="6">
-                                    <ComboBoxItem Content="Classic Split (Windows Stable 1:1)" Tag="Classic" />
-                                    <ComboBoxItem Content="Modern Poster (Neon Unicorn Glass)" Tag="Poster" />
-                                </ComboBox>
-                            </StackPanel>
 
-                            <!-- Title & Subtitle Customization -->
-                            <Grid ColumnDefinitions="*,*" Margin="0,4,0,0">
-                                <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,6,0">
-                                    <TextBlock Text="Title:" Foreground="#9A9AA8" FontSize="11" />
-                                    <TextBox x:Name="TbTitle"
-                                             Watermark="EffectCraft"
-                                             Background="#121217"
-                                             Foreground="#FFFFFF"
-                                             BorderBrush="#2C2C3D"
-                                             CornerRadius="6"
-                                             FontSize="12" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="1" Spacing="4" Margin="6,0,0,0">
-                                    <TextBlock Text="Subtitle:" Foreground="#9A9AA8" FontSize="11" />
-                                    <TextBox x:Name="TbSubtitle"
-                                             Watermark="Motion Graphics &amp; Compositing"
-                                             Background="#121217"
-                                             Foreground="#FFFFFF"
-                                             BorderBrush="#2C2C3D"
-                                             CornerRadius="6"
-                                             FontSize="12" />
-                                </StackPanel>
-                            </Grid>
+                            <!-- 0. Splash Screen Visual Style Selector -->
+                            <TextBlock Text="Splash Screen Visual Layout"
+                                       FontSize="11.5"
+                                       FontWeight="SemiBold"
+                                       Foreground="#AAAAAF" />
+                            <ComboBox x:Name="CbSplashStyle"
+                                      HorizontalAlignment="Stretch"
+                                      Background="#24242A"
+                                      Foreground="#FFFFFF"
+                                      BorderBrush="#37373E"
+                                      BorderThickness="1"
+                                      CornerRadius="5"
+                                      Padding="10,6">
+                                <ComboBoxItem Content="Classic Split (Windows Stable 1:1)" Tag="Classic" />
+                                <ComboBoxItem Content="Modern Poster (Neon Unicorn Glass)" Tag="Poster" />
+                            </ComboBox>
 
-                            <!-- Accent Color -->
-                            <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
-                                <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,8,0">
-                                    <TextBlock Text="Accent Color (Hex):" Foreground="#9A9AA8" FontSize="11" />
-                                    <TextBox x:Name="TbAccentColor"
-                                             Watermark="#00D2FF"
-                                             Background="#121217"
-                                             Foreground="#FFFFFF"
-                                             BorderBrush="#2C2C3D"
-                                             CornerRadius="6"
-                                             FontSize="12" />
-                                </StackPanel>
-                                <Border x:Name="AccentPreviewDot"
+                            <!-- 1. Featured Artwork -->
+                            <TextBlock Text="Featured Artwork (Image or Video)"
+                                       FontSize="11.5"
+                                       FontWeight="SemiBold"
+                                       Foreground="#AAAAAF"
+                                       Margin="0,4,0,0" />
+                            <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,4">
+                                <TextBlock x:Name="LblImagePath"
+                                           Grid.Column="0"
+                                           Text="splash.png"
+                                           Foreground="#B4B4B9"
+                                           VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis"
+                                           Margin="0,0,10,0" />
+                                <Button x:Name="BtnBrowseMedia"
                                         Grid.Column="1"
-                                        Width="28" Height="28"
-                                        CornerRadius="14"
-                                        Background="#00D2FF"
-                                        BorderBrush="#FFFFFF"
-                                        BorderThickness="1.5"
-                                        VerticalAlignment="Bottom"
-                                        Margin="0,0,0,2" />
-                            </Grid>
-
-                            <!-- Instant Launch & Sound -->
-                            <CheckBox x:Name="CbInstantLaunch" Content="Instant Launch (skip splash screen on startup)" Foreground="#E0E0EC" Margin="0,4,0,0" />
-                            <CheckBox x:Name="CbSoundChime" Content="Enable startup audio chime" Foreground="#E0E0EC" />
-                        </StackPanel>
-                    </Border>
-
-                    <!-- 2. EffectCraft Engine Path -->
-                    <Border Background="#191922" CornerRadius="10" Padding="14,12" BorderBrush="#242432" BorderThickness="1">
-                        <StackPanel Spacing="8">
-                            <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock Grid.Column="0" Text="EFFECTCRAFT ENGINE PATH" Foreground="#00D2FF" FontSize="11" FontWeight="SemiBold" LetterSpacing="0.5" />
-                                <TextBlock x:Name="TxtSettingsBinaryStatus" Grid.Column="1" Text="Ready" Foreground="#10B981" FontSize="11" VerticalAlignment="Center" />
-                            </Grid>
-                            <TextBlock Text="Custom or portable EffectCraft executable location:" Foreground="#8A8A9E" FontSize="11.5" />
-                            <Grid ColumnDefinitions="*,Auto" Margin="0,2,0,0">
-                                <TextBox x:Name="TbSettingsBinaryPath"
-                                         Grid.Column="0"
-                                         Watermark="Leave blank for auto-detection or enter custom path"
-                                         Background="#121217"
-                                         Foreground="#FFFFFF"
-                                         BorderBrush="#2C2C3D"
-                                         CornerRadius="6"
-                                         Padding="8,6"
-                                         FontSize="12"
-                                         Margin="0,0,8,0" />
-                                <Button x:Name="BtnSettingsBrowseBinary"
-                                        Grid.Column="1"
-                                        Content="Browse..."
-                                        Background="#222636"
-                                        Foreground="#85B6FF"
-                                        CornerRadius="6"
-                                        Padding="12,6"
-                                        FontSize="12"
+                                        Content="Browse Media..."
+                                        Padding="14,6"
+                                        Background="#2D2D34"
+                                        Foreground="#FFFFFF"
+                                        BorderThickness="0"
+                                        CornerRadius="5"
                                         Cursor="Hand" />
                             </Grid>
-                        </StackPanel>
-                    </Border>
 
-                    <!-- 3. Desktop Shortcuts & Global Hotkey -->
-                    <Border Background="#191922" CornerRadius="10" Padding="14,12" BorderBrush="#242432" BorderThickness="1">
-                        <StackPanel Spacing="10">
-                            <TextBlock Text="LINUX INTEGRATION &amp; SHORTCUTS" Foreground="#00D2FF" FontSize="11" FontWeight="SemiBold" LetterSpacing="0.5" />
-                            <TextBlock Text="Global hotkey: Ctrl + Space (registered in KDE Plasma / desktop compositor)" Foreground="#8A8A9E" FontSize="11.5" />
-                            
-                            <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock x:Name="ShortcutsStatus" Grid.Column="0" Text="Status: Shortcuts active" Foreground="#10B981" FontSize="11" VerticalAlignment="Center" />
-                                <Button x:Name="BtnRecreateShortcuts" Grid.Column="1" Content="Repair Shortcuts" Background="#222636" Foreground="#85B6FF" CornerRadius="6" Padding="12,6" FontSize="12" Cursor="Hand" />
+                            <!-- 2. Theme Mode -->
+                            <TextBlock Text="Theme Mode"
+                                       FontSize="11.5"
+                                       FontWeight="SemiBold"
+                                       Foreground="#AAAAAF"
+                                       Margin="0,4,0,0" />
+                            <StackPanel Orientation="Horizontal" Spacing="20" Margin="0,0,0,4">
+                                <RadioButton x:Name="RbThemeDark" Content="Dark Mode" Foreground="#FFFFFF" IsChecked="True" Cursor="Hand" />
+                                <RadioButton x:Name="RbThemeLight" Content="Light Mode" Foreground="#FFFFFF" Cursor="Hand" />
+                            </StackPanel>
+
+                            <!-- 3. Accent Palette Swatches -->
+                            <TextBlock Text="Accent Color Palette"
+                                       FontSize="11.5"
+                                       FontWeight="SemiBold"
+                                       Foreground="#AAAAAF"
+                                       Margin="0,4,0,0" />
+                            <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,4">
+                                <StackPanel x:Name="PaletteSwatchesStack"
+                                            Grid.Column="0"
+                                            Orientation="Horizontal"
+                                            Spacing="8"
+                                            VerticalAlignment="Center" />
+                                <Button x:Name="BtnResetAccent"
+                                        Grid.Column="1"
+                                        Content="Default (#00D2FF)"
+                                        Padding="10,5"
+                                        Background="#2D2D34"
+                                        Foreground="#FFFFFF"
+                                        BorderThickness="0"
+                                        CornerRadius="5"
+                                        Cursor="Hand" />
                             </Grid>
-                        </StackPanel>
-                    </Border>
 
-                    <!-- 4. Danger Zone / Uninstaller -->
-                    <Border Background="#221417" CornerRadius="10" Padding="14,12" BorderBrush="#4A1E24" BorderThickness="1">
-                        <StackPanel Spacing="10">
-                            <TextBlock Text="UNINSTALL" Foreground="#FF6B6B" FontSize="11" FontWeight="SemiBold" LetterSpacing="0.5" />
-                            <TextBlock Text="Remove Craft Console shortcuts, application menu entries, and desktop launchers." Foreground="#A88B8E" FontSize="11.5" />
-                            
-                            <CheckBox x:Name="CbPurgeConfig" Content="Also purge configuration and favorites (~/.config/effectcraft/)" Foreground="#D4A5A5" />
+                            <TextBox x:Name="TxtAccentHex"
+                                     Text="#00D2FF"
+                                     FontSize="13"
+                                     Background="#24242A"
+                                     Foreground="#FFFFFF"
+                                     BorderBrush="#37373E"
+                                     BorderThickness="1"
+                                     CornerRadius="5"
+                                     Padding="8,6"
+                                     Margin="0,0,0,4" />
 
-                            <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock x:Name="UninstallStatus" Grid.Column="0" Text="" Foreground="#FFA0A0" FontSize="11" VerticalAlignment="Center" />
-                                <Button x:Name="BtnUninstall" Grid.Column="1" Content="Uninstall Console" Background="#4A1B22" Foreground="#FF8585" CornerRadius="6" Padding="12,6" FontSize="12" Cursor="Hand" />
+                            <!-- 4. Typography: Title & Font Size Slider -->
+                            <TextBlock Text="Application Title &amp; Font Size"
+                                       FontSize="11.5"
+                                       FontWeight="SemiBold"
+                                       Foreground="#AAAAAF"
+                                       Margin="0,4,0,0" />
+                            <TextBox x:Name="TxtTitle"
+                                     Text="EffectCraft"
+                                     FontSize="13"
+                                     Background="#24242A"
+                                     Foreground="#FFFFFF"
+                                     BorderBrush="#37373E"
+                                     BorderThickness="1"
+                                     CornerRadius="5"
+                                     Padding="8,6" />
+                            <Grid ColumnDefinitions="*,60" Margin="0,2,0,4">
+                                <Slider x:Name="SliderTitleSize"
+                                        Grid.Column="0"
+                                        Minimum="16" Maximum="42" Value="32"
+                                        VerticalAlignment="Center" />
+                                <TextBlock x:Name="LblTitleSizeVal"
+                                           Grid.Column="1"
+                                           Text="32.0px"
+                                           FontSize="12"
+                                           Foreground="#B4B4B9"
+                                           HorizontalAlignment="Right"
+                                           VerticalAlignment="Center" />
                             </Grid>
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
-            </ScrollViewer>
 
-            <!-- Footer -->
-            <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="0,16,0,0">
-                <TextBlock Text="EffectCraft Console v1.0.1 (Linux-x64)" Foreground="#5E5E72" FontSize="11" VerticalAlignment="Center" />
-                <Button x:Name="BtnSave" Grid.Column="1" Content="Done" Background="#0F3254" Foreground="#00D2FF" FontWeight="SemiBold" CornerRadius="8" Padding="20,8" Cursor="Hand" />
+                            <!-- Subtitle / Edition -->
+                            <TextBlock Text="Subtitle / Edition Tag &amp; Font Size"
+                                       FontSize="11.5"
+                                       FontWeight="SemiBold"
+                                       Foreground="#AAAAAF"
+                                       Margin="0,4,0,0" />
+                            <TextBox x:Name="TxtSubtitle"
+                                     Text="Motion &amp; Visual Effects"
+                                     FontSize="13"
+                                     Background="#24242A"
+                                     Foreground="#FFFFFF"
+                                     BorderBrush="#37373E"
+                                     BorderThickness="1"
+                                     CornerRadius="5"
+                                     Padding="8,6" />
+                            <Grid ColumnDefinitions="*,60" Margin="0,2,0,4">
+                                <Slider x:Name="SliderSubtitleSize"
+                                        Grid.Column="0"
+                                        Minimum="8" Maximum="20" Value="11.5"
+                                        VerticalAlignment="Center" />
+                                <TextBlock x:Name="LblSubtitleSizeVal"
+                                           Grid.Column="1"
+                                           Text="11.5px"
+                                           FontSize="12"
+                                           Foreground="#B4B4B9"
+                                           HorizontalAlignment="Right"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+
+                            <!-- Artist / Credit Line -->
+                            <TextBlock Text="Artist / Credit Line &amp; Font Size"
+                                       FontSize="11.5"
+                                       FontWeight="SemiBold"
+                                       Foreground="#AAAAAF"
+                                       Margin="0,4,0,0" />
+                            <TextBox x:Name="TxtArtist"
+                                     Text="Cosmic Horizon Edition"
+                                     FontSize="13"
+                                     Background="#24242A"
+                                     Foreground="#FFFFFF"
+                                     BorderBrush="#37373E"
+                                     BorderThickness="1"
+                                     CornerRadius="5"
+                                     Padding="8,6" />
+                            <Grid ColumnDefinitions="*,60" Margin="0,2,0,4">
+                                <Slider x:Name="SliderArtistSize"
+                                        Grid.Column="0"
+                                        Minimum="7" Maximum="16" Value="10.0"
+                                        VerticalAlignment="Center" />
+                                <TextBlock x:Name="LblArtistSizeVal"
+                                           Grid.Column="1"
+                                           Text="10.0px"
+                                           FontSize="12"
+                                           Foreground="#B4B4B9"
+                                           HorizontalAlignment="Right"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+
+                            <!-- 5. Card Roundness Slider -->
+                            <TextBlock Text="Card Corner Roundness"
+                                       FontSize="11.5"
+                                       FontWeight="SemiBold"
+                                       Foreground="#AAAAAF"
+                                       Margin="0,4,0,0" />
+                            <Grid ColumnDefinitions="*,60" Margin="0,2,0,4">
+                                <Slider x:Name="SliderCornerRadius"
+                                        Grid.Column="0"
+                                        Minimum="0" Maximum="32" Value="18"
+                                        VerticalAlignment="Center" />
+                                <TextBlock x:Name="LblCornerRadiusVal"
+                                           Grid.Column="1"
+                                           Text="18.0px"
+                                           FontSize="12"
+                                           Foreground="#B4B4B9"
+                                           HorizontalAlignment="Right"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+
+                            <!-- 6. Visual Element Toggles -->
+                            <TextBlock Text="Visual Elements Toggles"
+                                       FontSize="11.5"
+                                       FontWeight="SemiBold"
+                                       Foreground="#AAAAAF"
+                                       Margin="0,4,0,0" />
+                            <StackPanel Spacing="6" Margin="0,0,0,4">
+                                <CheckBox x:Name="CbEnableSplash" Content="Enable Startup Splash Screen" Foreground="#FFFFFF" FontWeight="SemiBold" IsChecked="True" Cursor="Hand" />
+                                <CheckBox x:Name="CbLoadingBar" Content="Show Startup Progress Bar" Foreground="#FFFFFF" IsChecked="True" Cursor="Hand" />
+                                <CheckBox x:Name="CbLoadingText" Content="Show Startup Loading Status Text" Foreground="#FFFFFF" IsChecked="True" Cursor="Hand" />
+                                <CheckBox x:Name="CbFooter" Content="Show ArtCraft Suite Footnote" Foreground="#FFFFFF" IsChecked="True" Cursor="Hand" />
+                            </StackPanel>
+
+                            <!-- 7. Splash Duration Slider -->
+                            <TextBlock Text="Startup Splash Duration / Launch Delay"
+                                       FontSize="11.5"
+                                       FontWeight="SemiBold"
+                                       Foreground="#AAAAAF"
+                                       Margin="0,4,0,0" />
+                            <Grid ColumnDefinitions="*,60" Margin="0,2,0,8">
+                                <Slider x:Name="SliderDuration"
+                                        Grid.Column="0"
+                                        Minimum="1.5" Maximum="8.0" Value="3.5"
+                                        VerticalAlignment="Center" />
+                                <TextBlock x:Name="LblDurationVal"
+                                           Grid.Column="1"
+                                           Text="3.5s"
+                                           FontSize="12"
+                                           Foreground="#B4B4B9"
+                                           HorizontalAlignment="Right"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+
+                            <!-- 8. Reset Button -->
+                            <Button x:Name="BtnResetVisuals"
+                                    Content="↺  Reset All Visuals to Factory Defaults"
+                                    Padding="14,9"
+                                    Background="#24242A"
+                                    Foreground="#DCDCE1"
+                                    BorderBrush="#37373E"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Center"
+                                    Cursor="Hand"
+                                    Margin="0,4,0,16" />
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- RIGHT PAGE: Live Scaled Stage (Proportional Preview) -->
+                    <Border Grid.Column="2"
+                            Background="#0F0F11"
+                            BorderBrush="#26262C"
+                            BorderThickness="1"
+                            CornerRadius="14"
+                            Padding="16">
+                        <Grid RowDefinitions="Auto,*,Auto">
+                            
+                            <!-- Stage Header -->
+                            <TextBlock Grid.Row="0"
+                                       Text="LIVE PROPORTIONAL PREVIEW"
+                                       FontSize="11"
+                                       FontWeight="Bold"
+                                       Foreground="#78787D"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,0,0,10" />
+
+                            <!-- Viewbox Live Preview Card Container -->
+                            <Viewbox Grid.Row="1"
+                                     Stretch="Uniform"
+                                     HorizontalAlignment="Center"
+                                     VerticalAlignment="Center"
+                                     Margin="4">
+                                <Panel x:Name="PreviewContainer" Width="730" Height="450" />
+                            </Viewbox>
+
+                            <!-- Bottom Test Splash Button -->
+                            <Button x:Name="BtnTestSplash"
+                                    Grid.Row="2"
+                                    Content="Preview Full Splash Screen (Desktop)"
+                                    Padding="16,10"
+                                    Background="#202026"
+                                    Foreground="#FFFFFF"
+                                    BorderBrush="#373740"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    HorizontalAlignment="Center"
+                                    Cursor="Hand"
+                                    Margin="0,12,0,0" />
+                        </Grid>
+                    </Border>
+                </Grid>
+
+                <!-- VIEW 2: Extensions & Plug-ins -->
+                <Grid x:Name="ViewPlugins" IsVisible="False">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="0,4,16,16" Spacing="14">
+
+                            <!-- Header: EC Console Overview -->
+                            <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,2,0,6">
+                                <Path Data="M 104.28,49.49 L 81.55,0 H 50.32 L 47.15,4.76 L 14.75,53.63 L 0,75.85 L 21.55,97.4 L 85.34,60.46 L 102.33,97.5 L 116.34,75.76 L 104.28,49.49 Z M 32.89,65.66 L 65.31,16.79 L 76.22,40.56 L 32.89,65.66 Z"
+                                      Fill="#4E7BFB"
+                                      Width="28" Height="28"
+                                      Stretch="Uniform"
+                                      VerticalAlignment="Center" />
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="EC Console &amp; Automation Companion" FontSize="16" FontWeight="Bold" Foreground="#FFFFFF" />
+                                    <TextBlock Text="Lightning-fast floating HUD for search, effect chaining, and quick actions." FontSize="11.5" Foreground="#96969B" />
+                                </StackPanel>
+                            </StackPanel>
+
+                            <!-- Sub-Card 1: ⌨️ Global Summon Shortcut & Catalog -->
+                            <Border Background="#1A1A1F" BorderBrush="#2E2E36" BorderThickness="1" CornerRadius="8" Padding="16">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="⌨️ Console Palette &amp; Catalog Search" FontSize="13.5" FontWeight="Bold" Foreground="#00D2FF" />
+                                    <TextBlock Text="Global summon shortcut, catalog indexing toggles, and category search prefixes." FontSize="11" Foreground="#96969E" />
+
+                                    <!-- Hotkey Row -->
+                                    <TextBlock Text="Global Summon Shortcut (Linux / KDE Wayland):" FontSize="11.5" FontWeight="SemiBold" Foreground="#B4B4B9" />
+                                    <Grid ColumnDefinitions="240,10,Auto">
+                                        <Button x:Name="BtnGlobalShortcut"
+                                                Grid.Column="0"
+                                                Content="Ctrl + Space"
+                                                FontSize="12.5"
+                                                FontWeight="SemiBold"
+                                                Height="32"
+                                                Background="#24242A"
+                                                Foreground="#00D2FF"
+                                                BorderBrush="#373740"
+                                                BorderThickness="1"
+                                                CornerRadius="5"
+                                                Cursor="Hand"
+                                                HorizontalAlignment="Stretch"
+                                                HorizontalContentAlignment="Center" />
+                                        <Button x:Name="BtnResetGlobalShortcut"
+                                                Grid.Column="2"
+                                                Content="Reset to Default (Ctrl + Space)"
+                                                Height="32"
+                                                Padding="14,0"
+                                                Background="#2D2D34"
+                                                Foreground="#FFFFFF"
+                                                BorderThickness="0"
+                                                CornerRadius="5"
+                                                Cursor="Hand" />
+                                    </Grid>
+
+                                    <!-- Catalog Section Checkboxes -->
+                                    <TextBlock Text="Search Catalog Sections:" FontSize="11.5" FontWeight="SemiBold" Foreground="#B4B4B9" Margin="0,6,0,0" />
+                                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto">
+                                        <CheckBox x:Name="CbEffects" Grid.Row="0" Grid.Column="0" Content="Effects Catalog (306 Built-in)" IsChecked="True" Foreground="#FFFFFF" Cursor="Hand" />
+                                        <CheckBox x:Name="CbPresets" Grid.Row="0" Grid.Column="1" Content="Animation Presets" IsChecked="True" Foreground="#FFFFFF" Cursor="Hand" />
+                                        <CheckBox x:Name="CbLayers" Grid.Row="1" Grid.Column="0" Content="Quick Layer Generators (Solid, Null, etc.)" IsChecked="True" Foreground="#FFFFFF" Cursor="Hand" />
+                                        <CheckBox x:Name="CbCommands" Grid.Row="1" Grid.Column="1" Content="Command Palette Actions" IsChecked="True" Foreground="#FFFFFF" Cursor="Hand" />
+                                        <CheckBox x:Name="CbRecent" Grid.Row="2" Grid.Column="0" Content="Recent Projects List (.ecproj)" IsChecked="True" Foreground="#FFFFFF" Cursor="Hand" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Sub-Card 2: ★ Favorites & Quick Access -->
+                            <Border Background="#1A1A1F" BorderBrush="#2E2E36" BorderThickness="1" CornerRadius="8" Padding="16">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="★ Favorites &amp; Quick Access" FontSize="13.5" FontWeight="Bold" Foreground="#FFD700" />
+                                    <TextBlock Text="Star your favorite effects and presets for priority ranking and instant access." FontSize="11" Foreground="#96969E" />
+
+                                    <CheckBox x:Name="CbShowFavOnOpen" Content="Show Favorites list automatically on console open (empty search)" IsChecked="True" Foreground="#FFFFFF" Cursor="Hand" />
+
+                                    <TextBlock Text="Favorite Toggle Shortcut:" FontSize="11.5" FontWeight="SemiBold" Foreground="#B4B4B9" />
+                                    <Grid ColumnDefinitions="240,10,Auto">
+                                        <Button x:Name="BtnFavShortcut"
+                                                Grid.Column="0"
+                                                Content="Ctrl + D"
+                                                FontSize="12.5"
+                                                FontWeight="SemiBold"
+                                                Height="32"
+                                                Background="#24242A"
+                                                Foreground="#FFD700"
+                                                BorderBrush="#373740"
+                                                BorderThickness="1"
+                                                CornerRadius="5"
+                                                Cursor="Hand"
+                                                HorizontalAlignment="Stretch"
+                                                HorizontalContentAlignment="Center" />
+                                        <Button x:Name="BtnResetFavShortcut"
+                                                Grid.Column="2"
+                                                Content="Reset to Default (Ctrl + D)"
+                                                Height="32"
+                                                Padding="14,0"
+                                                Background="#2D2D34"
+                                                Foreground="#FFFFFF"
+                                                BorderThickness="0"
+                                                CornerRadius="5"
+                                                Cursor="Hand" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Sub-Card 3: Installation & Executable Link -->
+                            <Border Background="#1C1C20" BorderBrush="#2E2E34" BorderThickness="1" CornerRadius="10" Padding="18">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="Installation, Desktop Shortcuts &amp; EffectCraft Link" FontSize="15" FontWeight="Bold" Foreground="#FFFFFF" />
+                                    <TextBlock x:Name="LblLinkedExe" Text="Linked Executable: /mnt/Backup&amp;cache/ALOS/effectcraft-0.8.0-linux-x86_64/bin/effectcraft"
+                                               FontSize="11.5" Foreground="#00D2FF" TextWrapping="Wrap" />
+
+                                    <WrapPanel Orientation="Horizontal">
+                                        <Button x:Name="BtnLocateExe" Content="Locate EffectCraft Binary..." Padding="14,6" Background="#282830" Foreground="#FFFFFF" BorderBrush="#41414E" BorderThickness="1" CornerRadius="5" Cursor="Hand" Margin="0,0,10,8" />
+                                        <Button x:Name="BtnCreateShortcuts" Content="Re-generate Linux Desktop Shortcuts" Padding="14,6" Background="#282830" Foreground="#00D2FF" BorderBrush="#0096DC" BorderThickness="1" CornerRadius="5" Cursor="Hand" Margin="0,0,10,8" />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
             </Grid>
+
+            <!-- ROW 2: Bottom Action Bar -->
+            <Grid Grid.Row="2" Margin="0,16,0,0" ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0"
+                           Text="Configuration is saved to splash.ini • Changes take effect immediately"
+                           FontSize="11.5"
+                           Foreground="#828287"
+                           VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+                    <Button x:Name="BtnClose"
+                            Content="Close"
+                            Padding="16,8"
+                            Background="Transparent"
+                            Foreground="#C8C8CD"
+                            BorderThickness="0"
+                            CornerRadius="5"
+                            Cursor="Hand" />
+                    <Button x:Name="BtnSave"
+                            Content="Save &amp; Apply Changes"
+                            Padding="20,8"
+                            Background="#007ACC"
+                            Foreground="#FFFFFF"
+                            FontWeight="SemiBold"
+                            BorderThickness="0"
+                            CornerRadius="5"
+                            Cursor="Hand" />
+                </StackPanel>
+            </Grid>
+
         </Grid>
     </Border>
 </Window>

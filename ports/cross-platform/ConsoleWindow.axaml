@@ -1,15 +1,15 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:local="clr-namespace:CraftConsole.CrossPlatform"
         x:Class="CraftConsole.CrossPlatform.ConsoleWindow"
         Title="EC Console"
         Width="530"
         SizeToContent="Height"
-        WindowStartupLocation="CenterScreen"
+        WindowStartupLocation="Manual"
         SystemDecorations="None"
         CanResize="False"
         Background="Transparent"
-        Topmost="True">
+        Topmost="True"
+        ShowInTaskbar="False">
 
     <Window.Styles>
         <Style Selector="Button.icon-btn">
@@ -27,13 +27,6 @@
         </Style>
         <Style Selector="Button.icon-btn:pointerover">
             <Setter Property="Background" Value="#303030" />
-        </Style>
-        <Style Selector="Button.fav-star">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Padding" Value="4,0" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="FontSize" Value="14" />
         </Style>
         <Style Selector="ScrollBar:vertical">
             <Setter Property="Width" Value="6" />
@@ -61,7 +54,8 @@
             <Grid Height="44" Margin="12,0,8,0" ColumnDefinitions="28,*,Auto">
                 
                 <!-- Search Icon -->
-                <Path Grid.Column="0"
+                <Path x:Name="SearchIcon"
+                      Grid.Column="0"
                       Data="M 5,9 A 4,4 0 1,1 13,9 A 4,4 0 1,1 5,9 M 12,12 L 18,18"
                       Stroke="#DCDCDC"
                       StrokeThickness="2.2"
@@ -124,73 +118,14 @@
             <!-- 2. Divider Line (Height 1, #2A2A2A) -->
             <Border x:Name="Divider" Height="1" Background="#2A2A2A" IsVisible="False" />
 
-            <!-- 3. Results ListBox (MaxHeight 280, collapsed when search is empty) -->
-            <ListBox x:Name="ResultsListBox"
-                     MaxHeight="280"
-                     Background="Transparent"
-                     BorderThickness="0"
-                     Padding="0,4"
-                     IsVisible="False"
-                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                <ListBox.Styles>
-                    <Style Selector="ListBoxItem">
-                        <Setter Property="Padding" Value="14,6" />
-                        <Setter Property="Margin" Value="0" />
-                        <Setter Property="CornerRadius" Value="0" />
-                        <Setter Property="Background" Value="Transparent" />
-                    </Style>
-                    <Style Selector="ListBoxItem:pointerover">
-                        <Setter Property="Background" Value="#252528" />
-                    </Style>
-                    <Style Selector="ListBoxItem:selected">
-                        <Setter Property="Background" Value="#007ACC" />
-                    </Style>
-                    <Style Selector="ListBoxItem:selected TextBlock">
-                        <Setter Property="Foreground" Value="#FFFFFF" />
-                    </Style>
-                </ListBox.Styles>
-                <ListBox.ItemTemplate>
-                    <DataTemplate x:DataType="local:EffectItem">
-                        <Grid ColumnDefinitions="Auto,*,Auto,Auto">
-                            <!-- Star Favorite -->
-                            <Button Grid.Column="0"
-                                    Classes="fav-star"
-                                    Content="{Binding IsFavorite, Converter={x:Static local:Converters.FavoriteStarConverter}}"
-                                    Foreground="{Binding IsFavorite, Converter={x:Static local:Converters.FavoriteColorConverter}}"
-                                    Tag="{Binding}" />
-
-                            <!-- Item Name -->
-                            <TextBlock Grid.Column="1"
-                                       Text="{Binding Name}"
-                                       Foreground="#E1E1E1"
-                                       FontSize="13.5"
-                                       FontWeight="Medium"
-                                       VerticalAlignment="Center"
-                                       Margin="8,0,0,0" />
-
-                            <!-- Category Badge -->
-                            <Border Grid.Column="2"
-                                    Background="#24242A"
-                                    CornerRadius="3"
-                                    Padding="6,2"
-                                    Margin="8,0"
-                                    VerticalAlignment="Center">
-                                <TextBlock Text="{Binding Category}"
-                                           Foreground="#8A8A94"
-                                           FontSize="10.5" />
-                            </Border>
-
-                            <!-- Shortcut / Extra -->
-                            <TextBlock Grid.Column="3"
-                                       Text="{Binding Extra}"
-                                       Foreground="#7D7D82"
-                                       FontSize="11.5"
-                                       VerticalAlignment="Center"
-                                       Margin="4,0,8,0" />
-                        </Grid>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
+            <!-- 3. Dynamic Results Stack (MaxHeight 280, 1:1 with Windows Launcher.cs) -->
+            <ScrollViewer x:Name="ResultsScrollViewer"
+                          MaxHeight="280"
+                          IsVisible="False"
+                          HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto">
+                <StackPanel x:Name="ResultsStack" Orientation="Vertical" Margin="0,4,0,4" />
+            </ScrollViewer>
 
             <!-- 4. Toast / Status Message -->
             <TextBlock x:Name="StatusTextBlock"
