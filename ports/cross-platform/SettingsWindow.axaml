@@ -1,0 +1,174 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="CraftConsole.CrossPlatform.SettingsWindow"
+        Title="Settings"
+        Width="580" Height="620"
+        WindowStartupLocation="CenterOwner"
+        SystemDecorations="None"
+        CanResize="False"
+        Background="Transparent"
+        Topmost="True">
+
+    <Border CornerRadius="16"
+            Background="#141418"
+            BorderBrush="#2C2C3A"
+            BorderThickness="1.2"
+            BoxShadow="0 14 36 0 #70000000"
+            ClipToBounds="True">
+        <Grid RowDefinitions="Auto,*,Auto" Margin="24">
+            
+            <!-- Header -->
+            <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10">
+                    <TextBlock Text="⚙" FontSize="18" Foreground="#00D2FF" VerticalAlignment="Center" />
+                    <TextBlock Text="Console &amp; Studio Settings" FontSize="18" FontWeight="SemiBold" Foreground="#FFFFFF" VerticalAlignment="Center" />
+                </StackPanel>
+                <Button x:Name="BtnCloseTop" Grid.Column="1" Background="Transparent" BorderThickness="0" Content="✕" Foreground="#7A7A8E" FontSize="14" Cursor="Hand" />
+            </Grid>
+
+            <!-- Settings Content -->
+            <ScrollViewer Grid.Row="1">
+                <StackPanel Spacing="14">
+
+                    <!-- 1. Splash Screen Style & Visuals -->
+                    <Border Background="#191922" CornerRadius="10" Padding="14,12" BorderBrush="#242432" BorderThickness="1">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="SPLASH SCREEN &amp; ARTWORK" Foreground="#00D2FF" FontSize="11" FontWeight="SemiBold" LetterSpacing="0.5" />
+                            
+                            <!-- Style Dropdown -->
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Visual Style:" Foreground="#C0C0D0" FontSize="12" />
+                                <ComboBox x:Name="CbSplashStyle"
+                                          HorizontalAlignment="Stretch"
+                                          Background="#121217"
+                                          Foreground="#FFFFFF"
+                                          BorderBrush="#2C2C3D"
+                                          CornerRadius="6">
+                                    <ComboBoxItem Content="Classic Split (Windows Stable 1:1)" Tag="Classic" />
+                                    <ComboBoxItem Content="Modern Poster (Neon Unicorn Glass)" Tag="Poster" />
+                                </ComboBox>
+                            </StackPanel>
+
+                            <!-- Title & Subtitle Customization -->
+                            <Grid ColumnDefinitions="*,*" Margin="0,4,0,0">
+                                <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,6,0">
+                                    <TextBlock Text="Title:" Foreground="#9A9AA8" FontSize="11" />
+                                    <TextBox x:Name="TbTitle"
+                                             Watermark="EffectCraft"
+                                             Background="#121217"
+                                             Foreground="#FFFFFF"
+                                             BorderBrush="#2C2C3D"
+                                             CornerRadius="6"
+                                             FontSize="12" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="4" Margin="6,0,0,0">
+                                    <TextBlock Text="Subtitle:" Foreground="#9A9AA8" FontSize="11" />
+                                    <TextBox x:Name="TbSubtitle"
+                                             Watermark="Motion Graphics &amp; Compositing"
+                                             Background="#121217"
+                                             Foreground="#FFFFFF"
+                                             BorderBrush="#2C2C3D"
+                                             CornerRadius="6"
+                                             FontSize="12" />
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- Accent Color -->
+                            <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
+                                <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,8,0">
+                                    <TextBlock Text="Accent Color (Hex):" Foreground="#9A9AA8" FontSize="11" />
+                                    <TextBox x:Name="TbAccentColor"
+                                             Watermark="#00D2FF"
+                                             Background="#121217"
+                                             Foreground="#FFFFFF"
+                                             BorderBrush="#2C2C3D"
+                                             CornerRadius="6"
+                                             FontSize="12" />
+                                </StackPanel>
+                                <Border x:Name="AccentPreviewDot"
+                                        Grid.Column="1"
+                                        Width="28" Height="28"
+                                        CornerRadius="14"
+                                        Background="#00D2FF"
+                                        BorderBrush="#FFFFFF"
+                                        BorderThickness="1.5"
+                                        VerticalAlignment="Bottom"
+                                        Margin="0,0,0,2" />
+                            </Grid>
+
+                            <!-- Instant Launch & Sound -->
+                            <CheckBox x:Name="CbInstantLaunch" Content="Instant Launch (skip splash screen on startup)" Foreground="#E0E0EC" Margin="0,4,0,0" />
+                            <CheckBox x:Name="CbSoundChime" Content="Enable startup audio chime" Foreground="#E0E0EC" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 2. EffectCraft Engine Path -->
+                    <Border Background="#191922" CornerRadius="10" Padding="14,12" BorderBrush="#242432" BorderThickness="1">
+                        <StackPanel Spacing="8">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Grid.Column="0" Text="EFFECTCRAFT ENGINE PATH" Foreground="#00D2FF" FontSize="11" FontWeight="SemiBold" LetterSpacing="0.5" />
+                                <TextBlock x:Name="TxtSettingsBinaryStatus" Grid.Column="1" Text="Ready" Foreground="#10B981" FontSize="11" VerticalAlignment="Center" />
+                            </Grid>
+                            <TextBlock Text="Custom or portable EffectCraft executable location:" Foreground="#8A8A9E" FontSize="11.5" />
+                            <Grid ColumnDefinitions="*,Auto" Margin="0,2,0,0">
+                                <TextBox x:Name="TbSettingsBinaryPath"
+                                         Grid.Column="0"
+                                         Watermark="Leave blank for auto-detection or enter custom path"
+                                         Background="#121217"
+                                         Foreground="#FFFFFF"
+                                         BorderBrush="#2C2C3D"
+                                         CornerRadius="6"
+                                         Padding="8,6"
+                                         FontSize="12"
+                                         Margin="0,0,8,0" />
+                                <Button x:Name="BtnSettingsBrowseBinary"
+                                        Grid.Column="1"
+                                        Content="Browse..."
+                                        Background="#222636"
+                                        Foreground="#85B6FF"
+                                        CornerRadius="6"
+                                        Padding="12,6"
+                                        FontSize="12"
+                                        Cursor="Hand" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 3. Desktop Shortcuts & Global Hotkey -->
+                    <Border Background="#191922" CornerRadius="10" Padding="14,12" BorderBrush="#242432" BorderThickness="1">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="LINUX INTEGRATION &amp; SHORTCUTS" Foreground="#00D2FF" FontSize="11" FontWeight="SemiBold" LetterSpacing="0.5" />
+                            <TextBlock Text="Global hotkey: Ctrl + Space (registered in KDE Plasma / desktop compositor)" Foreground="#8A8A9E" FontSize="11.5" />
+                            
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock x:Name="ShortcutsStatus" Grid.Column="0" Text="Status: Shortcuts active" Foreground="#10B981" FontSize="11" VerticalAlignment="Center" />
+                                <Button x:Name="BtnRecreateShortcuts" Grid.Column="1" Content="Repair Shortcuts" Background="#222636" Foreground="#85B6FF" CornerRadius="6" Padding="12,6" FontSize="12" Cursor="Hand" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 4. Danger Zone / Uninstaller -->
+                    <Border Background="#221417" CornerRadius="10" Padding="14,12" BorderBrush="#4A1E24" BorderThickness="1">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="UNINSTALL" Foreground="#FF6B6B" FontSize="11" FontWeight="SemiBold" LetterSpacing="0.5" />
+                            <TextBlock Text="Remove Craft Console shortcuts, application menu entries, and desktop launchers." Foreground="#A88B8E" FontSize="11.5" />
+                            
+                            <CheckBox x:Name="CbPurgeConfig" Content="Also purge configuration and favorites (~/.config/effectcraft/)" Foreground="#D4A5A5" />
+
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock x:Name="UninstallStatus" Grid.Column="0" Text="" Foreground="#FFA0A0" FontSize="11" VerticalAlignment="Center" />
+                                <Button x:Name="BtnUninstall" Grid.Column="1" Content="Uninstall Console" Background="#4A1B22" Foreground="#FF8585" CornerRadius="6" Padding="12,6" FontSize="12" Cursor="Hand" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Footer -->
+            <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="0,16,0,0">
+                <TextBlock Text="EffectCraft Console v1.0.1 (Linux-x64)" Foreground="#5E5E72" FontSize="11" VerticalAlignment="Center" />
+                <Button x:Name="BtnSave" Grid.Column="1" Content="Done" Background="#0F3254" Foreground="#00D2FF" FontWeight="SemiBold" CornerRadius="8" Padding="20,8" Cursor="Hand" />
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

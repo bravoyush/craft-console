@@ -1,0 +1,204 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:CraftConsole.CrossPlatform"
+        x:Class="CraftConsole.CrossPlatform.ConsoleWindow"
+        Title="EC Console"
+        Width="530"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterScreen"
+        SystemDecorations="None"
+        CanResize="False"
+        Background="Transparent"
+        Topmost="True">
+
+    <Window.Styles>
+        <Style Selector="Button.icon-btn">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="2,0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.icon-btn:pointerover">
+            <Setter Property="Background" Value="#303030" />
+        </Style>
+        <Style Selector="Button.fav-star">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="4,0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontSize" Value="14" />
+        </Style>
+        <Style Selector="ScrollBar:vertical">
+            <Setter Property="Width" Value="6" />
+        </Style>
+        <Style Selector="ScrollBar:vertical /template/ Thumb">
+            <Setter Property="Background" Value="#4A4A54" />
+            <Setter Property="CornerRadius" Value="3" />
+        </Style>
+        <Style Selector="ScrollBar:vertical /template/ Thumb:pointerover">
+            <Setter Property="Background" Value="#656575" />
+        </Style>
+    </Window.Styles>
+
+    <!-- Outer Border (1:1 with Windows FXConsoleWindow) -->
+    <Border x:Name="OuterBorder"
+            Background="#1A1A1A"
+            BorderBrush="#323232"
+            BorderThickness="1"
+            CornerRadius="6"
+            BoxShadow="0 4 24 0 #C0000000"
+            ClipToBounds="True">
+        <StackPanel Orientation="Vertical">
+            
+            <!-- 1. Top Search Header (Height 44) -->
+            <Grid Height="44" Margin="12,0,8,0" ColumnDefinitions="28,*,Auto">
+                
+                <!-- Search Icon -->
+                <Path Grid.Column="0"
+                      Data="M 5,9 A 4,4 0 1,1 13,9 A 4,4 0 1,1 5,9 M 12,12 L 18,18"
+                      Stroke="#DCDCDC"
+                      StrokeThickness="2.2"
+                      Width="18" Height="18"
+                      Stretch="Uniform"
+                      VerticalAlignment="Center"
+                      HorizontalAlignment="Left" />
+
+                <!-- Search Input Box -->
+                <TextBox x:Name="SearchBox"
+                         Grid.Column="1"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         Foreground="#FFFFFF"
+                         CaretBrush="#00A8FF"
+                         FontSize="17"
+                         FontFamily="Inter, Segoe UI, Arial, sans-serif"
+                         VerticalContentAlignment="Center"
+                         Margin="6,0,8,0" />
+
+                <!-- Action Button Stack (Right Header) -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- 1. Snapshot Camera Button -->
+                    <Button x:Name="BtnSnapshot" Classes="icon-btn" ToolTip.Tip="Snapshot / Copy Frame to Clipboard">
+                        <Path Data="M 6,9 L 8,6 L 14,6 L 16,9 L 19,9 C 20,9 21,10 21,11 L 21,18 C 21,19 20,20 19,20 L 3,20 C 2,20 1,19 1,18 L 1,11 C 1,10 2,9 3,9 Z M 11,17 A 3.5,3.5 0 1,0 11,10 A 3.5,3.5 0 1,0 11,17"
+                              Stroke="#B4B4B4" StrokeThickness="1.5"
+                              Width="16" Height="16" Stretch="Uniform" />
+                    </Button>
+
+                    <!-- 2. Gallery / Presets Button -->
+                    <Button x:Name="BtnPresets" Classes="icon-btn" ToolTip.Tip="Captures Gallery / Animation Presets">
+                        <Path Data="M 3,4 L 16,4 C 17,4 17,5 17,5 L 17,15 C 17,16 16,16 16,16 L 3,16 C 2,16 2,15 2,15 L 2,5 C 2,4 3,4 3,4 Z M 6,19 L 19,19 C 20,19 20,18 20,18 L 20,8"
+                              Stroke="#B4B4B4" StrokeThickness="1.5"
+                              Width="16" Height="16" Stretch="Uniform" />
+                    </Button>
+
+                    <!-- 3. Export PNG Button -->
+                    <Button x:Name="BtnExport" Classes="icon-btn" ToolTip.Tip="Save Frame As PNG">
+                        <Path Data="M 11,3 L 11,14 M 7,10 L 11,14 L 15,10 M 3,17 L 3,19 L 19,19 L 19,17"
+                              Stroke="#B4B4B4" StrokeThickness="1.5"
+                              Width="16" Height="16" Stretch="Uniform" />
+                    </Button>
+
+                    <!-- 4. Settings Gear Button -->
+                    <Button x:Name="BtnSettings" Classes="icon-btn" ToolTip.Tip="EC Console &amp; Studio Settings">
+                        <Path Data="M 11,2 L 13,2 L 13.5,5 L 15.5,5.8 L 18,3.8 L 19.5,5.3 L 17.5,7.8 L 18.3,9.8 L 21.3,10.3 L 21.3,12.3 L 18.3,12.8 L 17.5,14.8 L 19.5,17.3 L 18,18.8 L 15.5,16.8 L 13.5,17.6 L 13,20.6 L 11,20.6 L 10.5,17.6 L 8.5,16.8 L 6,18.8 L 4.5,17.3 L 6.5,14.8 L 5.7,12.8 L 2.7,12.3 L 2.7,10.3 L 5.7,9.8 L 6.5,7.8 L 4.5,5.3 L 6,3.8 L 8.5,5.8 L 10.5,5 Z M 12,14 A 2.8,2.8 0 1,0 12,8.4 A 2.8,2.8 0 1,0 12,14"
+                              Stroke="#B4B4B4" StrokeThickness="1.5"
+                              Width="16" Height="16" Stretch="Uniform" />
+                    </Button>
+
+                    <!-- 5. ArtCraft Brand Emblem Button -->
+                    <Button x:Name="BtnBrand" Classes="icon-btn" ToolTip.Tip="EffectCraft">
+                        <Path Data="M 104.28,49.49 L 81.55,0 H 50.32 L 47.15,4.76 L 14.75,53.63 L 0,75.85 L 21.55,97.4 L 85.34,60.46 L 102.33,97.5 L 116.34,75.76 L 104.28,49.49 Z M 32.89,65.66 L 65.31,16.79 L 76.22,40.56 L 32.89,65.66 Z"
+                              Fill="#4E7BFB"
+                              Width="16" Height="16" Stretch="Uniform" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+
+            <!-- 2. Divider Line (Height 1, #2A2A2A) -->
+            <Border x:Name="Divider" Height="1" Background="#2A2A2A" IsVisible="False" />
+
+            <!-- 3. Results ListBox (MaxHeight 280, collapsed when search is empty) -->
+            <ListBox x:Name="ResultsListBox"
+                     MaxHeight="280"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     Padding="0,4"
+                     IsVisible="False"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.Styles>
+                    <Style Selector="ListBoxItem">
+                        <Setter Property="Padding" Value="14,6" />
+                        <Setter Property="Margin" Value="0" />
+                        <Setter Property="CornerRadius" Value="0" />
+                        <Setter Property="Background" Value="Transparent" />
+                    </Style>
+                    <Style Selector="ListBoxItem:pointerover">
+                        <Setter Property="Background" Value="#252528" />
+                    </Style>
+                    <Style Selector="ListBoxItem:selected">
+                        <Setter Property="Background" Value="#007ACC" />
+                    </Style>
+                    <Style Selector="ListBoxItem:selected TextBlock">
+                        <Setter Property="Foreground" Value="#FFFFFF" />
+                    </Style>
+                </ListBox.Styles>
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="local:EffectItem">
+                        <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                            <!-- Star Favorite -->
+                            <Button Grid.Column="0"
+                                    Classes="fav-star"
+                                    Content="{Binding IsFavorite, Converter={x:Static local:Converters.FavoriteStarConverter}}"
+                                    Foreground="{Binding IsFavorite, Converter={x:Static local:Converters.FavoriteColorConverter}}"
+                                    Tag="{Binding}" />
+
+                            <!-- Item Name -->
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding Name}"
+                                       Foreground="#E1E1E1"
+                                       FontSize="13.5"
+                                       FontWeight="Medium"
+                                       VerticalAlignment="Center"
+                                       Margin="8,0,0,0" />
+
+                            <!-- Category Badge -->
+                            <Border Grid.Column="2"
+                                    Background="#24242A"
+                                    CornerRadius="3"
+                                    Padding="6,2"
+                                    Margin="8,0"
+                                    VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Category}"
+                                           Foreground="#8A8A94"
+                                           FontSize="10.5" />
+                            </Border>
+
+                            <!-- Shortcut / Extra -->
+                            <TextBlock Grid.Column="3"
+                                       Text="{Binding Extra}"
+                                       Foreground="#7D7D82"
+                                       FontSize="11.5"
+                                       VerticalAlignment="Center"
+                                       Margin="4,0,8,0" />
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <!-- 4. Toast / Status Message -->
+            <TextBlock x:Name="StatusTextBlock"
+                       Foreground="#00C8FF"
+                       FontSize="12"
+                       FontFamily="Inter, Segoe UI, sans-serif"
+                       Margin="14,4,14,8"
+                       IsVisible="False" />
+        </StackPanel>
+    </Border>
+</Window>

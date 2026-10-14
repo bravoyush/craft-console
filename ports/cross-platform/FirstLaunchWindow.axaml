@@ -1,0 +1,136 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="CraftConsole.CrossPlatform.FirstLaunchWindow"
+        Title="Craft Console Setup"
+        Width="540" Height="510"
+        WindowStartupLocation="CenterScreen"
+        SystemDecorations="None"
+        CanResize="False"
+        Background="Transparent"
+        Topmost="True">
+
+    <Border CornerRadius="16"
+            Background="#141418"
+            BorderBrush="#2A2A38"
+            BorderThickness="1.2"
+            BoxShadow="0 14 36 0 #70000000"
+            ClipToBounds="True">
+        <Grid RowDefinitions="Auto,*,Auto" Margin="28">
+            <!-- Header -->
+            <StackPanel Grid.Row="0" Spacing="6" Margin="0,0,0,16">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Border Width="32" Height="32"
+                            CornerRadius="8"
+                            Background="#0F2338"
+                            BorderBrush="#00D2FF"
+                            BorderThickness="1">
+                        <TextBlock Text="✦"
+                                   Foreground="#00D2FF"
+                                   FontSize="16"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                    </Border>
+                    <TextBlock Text="Welcome to Craft Console"
+                               Foreground="#FFFFFF"
+                               FontSize="18"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+                <TextBlock Text="Configure EffectCraft binary location &amp; user-space Linux shortcuts."
+                           Foreground="#8E8EA0"
+                           FontSize="12" />
+            </StackPanel>
+
+            <!-- Configuration Options -->
+            <StackPanel Grid.Row="1" Spacing="12">
+                <!-- EffectCraft Engine Location -->
+                <Border Background="#1A1A22" CornerRadius="10" Padding="14,10" BorderBrush="#262634" BorderThickness="1">
+                    <StackPanel Spacing="6">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0" Text="EffectCraft Binary Location" FontWeight="Medium" FontSize="13" Foreground="#FFFFFF" />
+                            <TextBlock x:Name="TxtBinaryStatus" Grid.Column="1" Text="Searching..." Foreground="#00D2FF" FontSize="11" VerticalAlignment="Center" />
+                        </Grid>
+                        <TextBlock Text="Executable path (specify manually if you installed EffectCraft portably):" Foreground="#7E7E92" FontSize="11" />
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,2,0,0">
+                            <TextBox x:Name="TbBinaryPath"
+                                     Grid.Column="0"
+                                     Watermark="/path/to/effectcraft"
+                                     Background="#121217"
+                                     Foreground="#FFFFFF"
+                                     BorderBrush="#2C2C3D"
+                                     CornerRadius="6"
+                                     Padding="8,6"
+                                     FontSize="12"
+                                     Margin="0,0,8,0" />
+                            <Button x:Name="BtnBrowseBinary"
+                                    Grid.Column="1"
+                                    Content="Browse..."
+                                    Background="#222636"
+                                    Foreground="#85B6FF"
+                                    CornerRadius="6"
+                                    Padding="12,6"
+                                    FontSize="12"
+                                    Cursor="Hand" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <Border Background="#1A1A22" CornerRadius="10" Padding="14,10" BorderBrush="#262634" BorderThickness="1">
+                    <CheckBox x:Name="CbAppMenu"
+                               IsChecked="True"
+                               Foreground="#FFFFFF">
+                        <StackPanel Margin="6,0,0,0">
+                            <TextBlock Text="Add to Application Menu (Start Menu)" FontWeight="Medium" FontSize="13" />
+                            <TextBlock Text="Installs craft-console.desktop to ~/.local/share/applications" Foreground="#7E7E92" FontSize="11" />
+                        </StackPanel>
+                    </CheckBox>
+                </Border>
+
+                <Border Background="#1A1A22" CornerRadius="10" Padding="14,10" BorderBrush="#262634" BorderThickness="1">
+                    <CheckBox x:Name="CbUnifiedLauncher"
+                              IsChecked="True"
+                              Foreground="#FFFFFF">
+                        <StackPanel Margin="6,0,0,0">
+                            <TextBlock Text="Create Unified 'EffectCraft (with Console)'" FontWeight="Medium" FontSize="13" />
+                            <TextBlock Text="Launches EffectCraft and Console together, auto-closes with engine" Foreground="#7E7E92" FontSize="11" />
+                        </StackPanel>
+                    </CheckBox>
+                </Border>
+
+                <Border Background="#1A1A22" CornerRadius="10" Padding="14,10" BorderBrush="#262634" BorderThickness="1">
+                    <CheckBox x:Name="CbDesktopShortcut"
+                              IsChecked="True"
+                              Foreground="#FFFFFF">
+                        <StackPanel Margin="6,0,0,0">
+                            <TextBlock Text="Create Desktop Shortcut" FontWeight="Medium" FontSize="13" />
+                            <TextBlock Text="Places clickable launcher icon directly on your Desktop" Foreground="#7E7E92" FontSize="11" />
+                        </StackPanel>
+                    </CheckBox>
+                </Border>
+            </StackPanel>
+
+            <!-- Buttons -->
+            <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" Margin="0,20,0,0">
+                <Button x:Name="BtnSkip"
+                        Grid.Column="1"
+                        Content="Skip"
+                        Background="#22222E"
+                        Foreground="#9999AA"
+                        CornerRadius="8"
+                        Padding="16,8"
+                        Margin="0,0,10,0"
+                        Cursor="Hand" />
+
+                <Button x:Name="BtnFinish"
+                        Grid.Column="2"
+                        Content="Save &amp; Continue"
+                        Background="#0F3254"
+                        Foreground="#00D2FF"
+                        FontWeight="SemiBold"
+                        CornerRadius="8"
+                        Padding="20,8"
+                        Cursor="Hand" />
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

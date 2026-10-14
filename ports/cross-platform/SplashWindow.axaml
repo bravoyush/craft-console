@@ -1,0 +1,175 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="CraftConsole.CrossPlatform.SplashWindow"
+        Title="EffectCraft"
+        Width="730" Height="450"
+        WindowStartupLocation="CenterScreen"
+        SystemDecorations="None"
+        CanResize="False"
+        Background="Transparent"
+        Topmost="True">
+
+    <!-- Root Border -->
+    <Border x:Name="RootBorder"
+            CornerRadius="12"
+            Background="#141416"
+            BorderBrush="#2E2E32"
+            BorderThickness="1"
+            BoxShadow="0 4 24 0 #C0000000"
+            ClipToBounds="True">
+
+        <Panel>
+            <!-- ================= STYLE 1: CLASSIC SPLIT (1:1 Windows Stable) ================= -->
+            <Grid x:Name="ClassicLayout" ColumnDefinitions="330,*">
+                
+                <!-- Left Stack (330px width) -->
+                <Grid Grid.Column="0" Margin="34,30,20,26" RowDefinitions="Auto,*,Auto">
+                    
+                    <!-- Top Brand Row -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Top">
+                        <!-- ArtCraft Vector Badge -->
+                        <Border x:Name="BadgeBorder"
+                                Width="46" Height="46"
+                                CornerRadius="8"
+                                Background="#0F2338"
+                                BorderBrush="#00D2FF"
+                                BorderThickness="1.6">
+                            <Path x:Name="BadgeMark"
+                                  Data="M 104.28,49.49 L 81.55,0 H 50.32 L 47.15,4.76 L 14.75,53.63 L 0,75.85 L 21.55,97.4 L 85.34,60.46 L 102.33,97.5 L 116.34,75.76 L 104.28,49.49 Z M 32.89,65.66 L 65.31,16.79 L 76.22,40.56 L 32.89,65.66 Z"
+                                  Fill="#00D2FF"
+                                  Width="26" Height="26"
+                                  Stretch="Uniform"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center" />
+                        </Border>
+
+                        <StackPanel Margin="12,2,0,0" VerticalAlignment="Center">
+                            <!-- Publisher Pill -->
+                            <Border Background="#26262A"
+                                    CornerRadius="4"
+                                    Padding="6,2"
+                                    HorizontalAlignment="Left">
+                                <TextBlock Text="ArtCraft"
+                                           FontSize="10"
+                                           FontWeight="SemiBold"
+                                           Foreground="#A0A0A5" />
+                            </Border>
+
+                            <!-- Subtitle -->
+                            <TextBlock x:Name="SubtitleLabel"
+                                       Text="Motion Graphics &amp; Compositing"
+                                       FontSize="11.5"
+                                       Foreground="#8C8C91"
+                                       Margin="0,3,0,0" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Middle: Title & Meta -->
+                    <StackPanel Grid.Row="1" VerticalAlignment="Center" Margin="0,16,0,0">
+                        <TextBlock x:Name="TitleLabel"
+                                   Text="EffectCraft"
+                                   FontSize="34"
+                                   FontWeight="SemiBold"
+                                   Foreground="#FFFFFF"
+                                   LetterSpacing="0.5" />
+                        <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
+                            <Border Background="#1C2C3D" CornerRadius="4" Padding="6,2">
+                                <TextBlock Text="v1.0.1" Foreground="#00D2FF" FontSize="11" FontWeight="SemiBold" />
+                            </Border>
+                            <TextBlock Text="• Linux Edition (Vulkan / Wasm)"
+                                       Foreground="#6C6C75"
+                                       FontSize="11"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Bottom: Loading Step & Animated Progress Bar -->
+                    <StackPanel Grid.Row="2" VerticalAlignment="Bottom" Spacing="8">
+                        <TextBlock x:Name="StatusLabelClassic"
+                                   Text="Initializing Engine Core..."
+                                   Foreground="#8C8C91"
+                                   FontSize="11" />
+                        
+                        <ProgressBar x:Name="ProgressBarClassic"
+                                     Height="3"
+                                     Minimum="0"
+                                     Maximum="100"
+                                     Value="15"
+                                     Foreground="#00D2FF"
+                                     Background="#282830"
+                                     BorderThickness="0"
+                                     CornerRadius="1.5" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- Right Column: Artwork Portal -->
+                <Border Grid.Column="1"
+                        Margin="14,18,22,18"
+                        CornerRadius="10"
+                        Background="#0D0D10"
+                        BorderBrush="#25252A"
+                        BorderThickness="1"
+                        BoxShadow="0 8 24 0 #90000000"
+                        ClipToBounds="True">
+                    <Image x:Name="ArtImageClassic"
+                           Source="avares://CraftConsole/assets/splash.png"
+                           Stretch="UniformToFill"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center" />
+                </Border>
+            </Grid>
+
+            <!-- ================= STYLE 2: MODERN POSTER (Neon Unicorn Glass) ================= -->
+            <Grid x:Name="PosterLayout" IsVisible="False">
+                <Image x:Name="ArtImagePoster"
+                       Source="avares://CraftConsole/assets/splash.png"
+                       Stretch="UniformToFill" />
+
+                <!-- Gradient Overlay -->
+                <Border>
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                            <GradientStop Color="#55000000" Offset="0.0" />
+                            <GradientStop Color="#22000000" Offset="0.4" />
+                            <GradientStop Color="#C00E0E12" Offset="0.75" />
+                            <GradientStop Color="#F00E0E12" Offset="1.0" />
+                        </LinearGradientBrush>
+                    </Border.Background>
+                </Border>
+
+                <!-- Overlay Content -->
+                <Grid RowDefinitions="Auto,*,Auto" Margin="32">
+                    <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto">
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="14">
+                            <Border Width="42" Height="42"
+                                    CornerRadius="10"
+                                    Background="#0F2338"
+                                    BorderBrush="#00D2FF"
+                                    BorderThickness="1.5">
+                                <TextBlock Text="Ec" Foreground="#00D2FF" FontSize="20" FontWeight="Bold"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock x:Name="PosterTitle" Text="EffectCraft" Foreground="#FFFFFF" FontSize="24" FontWeight="SemiBold" />
+                                <TextBlock x:Name="PosterSubtitle" Text="Motion Graphics &amp; Compositing" Foreground="#A0A0B0" FontSize="12" />
+                            </StackPanel>
+                        </StackPanel>
+                        <Border Grid.Column="2" Background="#22FFFFFF" CornerRadius="12" Padding="10,4" VerticalAlignment="Center">
+                            <TextBlock Text="v1.0.1 • Linux Edition" Foreground="#C0C0D0" FontSize="11" />
+                        </Border>
+                    </Grid>
+
+                    <Grid Grid.Row="2" RowDefinitions="Auto,Auto,Auto">
+                        <Grid Grid.Row="0" Margin="0,0,0,10">
+                            <TextBlock x:Name="StatusLabelPoster" Text="Initializing EffectCraft engine..." Foreground="#D0D0E0" FontSize="13" />
+                            <TextBlock Text="Cosmic Horizon Edition" Foreground="#707085" FontSize="11" HorizontalAlignment="Right" />
+                        </Grid>
+                        <ProgressBar x:Name="ProgressBarPoster" Grid.Row="1" Height="4" Minimum="0" Maximum="100" Value="15"
+                                     Foreground="#00D2FF" Background="#252535" BorderThickness="0" CornerRadius="2" />
+                        <TextBlock Grid.Row="2" Margin="0,8,0,0" Text="Press Ctrl + Space to summon Craft Console anytime" Foreground="#606075" FontSize="10.5" HorizontalAlignment="Center" />
+                    </Grid>
+                </Grid>
+            </Grid>
+        </Panel>
+    </Border>
+</Window>
