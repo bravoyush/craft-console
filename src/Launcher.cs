@@ -110,7 +110,6 @@ namespace EffectCraftLauncher
         private static LowLevelKeyboardProc _kbProc;
         public static Process _childProc;
         private static long _lastTriggerTick = 0;
-        private static bool _ctrlDown = false;
         private static NotifyIcon _tray;
         public static FXConsoleWindow _consoleWindow;
         public static SplashWindow _splashWindow;
@@ -395,21 +394,7 @@ namespace EffectCraftLauncher
                     }
                 }
 
-                // 2. Secondary: If targetDir is specified and writable, mirror files there as a best-effort
-                if (!string.IsNullOrEmpty(targetDir))
-                {
-                    try
-                    {
-                        string splashDir = Path.Combine(targetDir, "splash");
-                        if (!Directory.Exists(splashDir)) Directory.CreateDirectory(splashDir);
-                        string artFile = Path.Combine(splashDir, "art.png");
-                        if (!File.Exists(artFile) && File.Exists(appDataArt))
-                        {
-                            try { File.Copy(appDataArt, artFile, false); } catch { }
-                        }
-                    }
-                    catch { }
-                }
+                // Do not write or mirror to targetDir or AppDir to completely prevent folder pollution in user Downloads/Desktop
             }
             catch (Exception ex)
             {
@@ -4303,6 +4288,8 @@ namespace EffectCraftLauncher
         private System.Windows.Controls.CheckBox _chkDesktopShortcut;
         private System.Windows.Controls.CheckBox _chkStartMenuShortcut;
         private System.Windows.Controls.CheckBox _chkInstallSplash;
+        private System.Windows.Controls.RadioButton _rbKeepSettings;
+        private System.Windows.Controls.RadioButton _rbResetSettings;
 
         public FirstLaunchSetupWindow(string initialPath)
         {
@@ -4511,6 +4498,60 @@ namespace EffectCraftLauncher
             optCard.Child = optStack;
             bodyStack.Children.Add(optCard);
 
+            string appDataDir = SplashConfig.GetConfigDir();
+            string appDataIni = Path.Combine(appDataDir, "splash.ini");
+            if (File.Exists(appDataIni))
+            {
+                this.Height = 560;
+                var settingsCard = new Border
+                {
+                    Background = new SolidColorBrush(Color.FromRgb(18, 30, 42)),
+                    BorderBrush = new SolidColorBrush(Color.FromRgb(0, 160, 220)),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(8),
+                    Padding = new Thickness(16, 12, 16, 12),
+                    Margin = new Thickness(0, 0, 0, 10)
+                };
+                var sStack = new StackPanel();
+                sStack.Children.Add(new TextBlock
+                {
+                    Text = "⚡ Existing Configuration & Favorites Detected",
+                    FontSize = 12,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0, 210, 255)),
+                    Margin = new Thickness(0, 0, 0, 4)
+                });
+                sStack.Children.Add(new TextBlock
+                {
+                    Text = "A previous configuration was found in %APPDATA%\\EffectCraft.",
+                    FontSize = 11,
+                    Foreground = new SolidColorBrush(Color.FromRgb(165, 180, 200)),
+                    Margin = new Thickness(0, 0, 0, 8)
+                });
+
+                _rbKeepSettings = new System.Windows.Controls.RadioButton
+                {
+                    Content = "Keep existing settings, themes & favorites (Recommended)",
+                    IsChecked = true,
+                    GroupName = "ExistingSettingsGroup",
+                    Foreground = Brushes.White,
+                    FontSize = 11.5,
+                    Margin = new Thickness(0, 0, 0, 4)
+                };
+                _rbResetSettings = new System.Windows.Controls.RadioButton
+                {
+                    Content = "Reset configuration to clean factory defaults",
+                    IsChecked = false,
+                    GroupName = "ExistingSettingsGroup",
+                    Foreground = new SolidColorBrush(Color.FromRgb(200, 200, 210)),
+                    FontSize = 11.5
+                };
+                sStack.Children.Add(_rbKeepSettings);
+                sStack.Children.Add(_rbResetSettings);
+                settingsCard.Child = sStack;
+                bodyStack.Children.Add(settingsCard);
+            }
+
             Grid.SetRow(bodyStack, 1);
             rootGrid.Children.Add(bodyStack);
 
@@ -4613,11 +4654,19 @@ namespace EffectCraftLauncher
                     catch { }
                 }
 
+                if (_rbResetSettings != null && _rbResetSettings.IsChecked == true)
+                {
+                    try
+                    {
+                        string iniPath = Path.Combine(SplashConfig.GetConfigDir(), "splash.ini");
+                        if (File.Exists(iniPath)) File.Delete(iniPath);
+                    }
+                    catch { }
+                }
+
                 if (_chkInstallSplash.IsChecked == true)
                 {
-                    string ecDir = Path.GetDirectoryName(chosen);
-                    Program.EnsureSplashFiles(ecDir);
-                    Program.EnsureSplashFiles(Program.AppDir);
+                    Program.EnsureSplashFiles(null);
                 }
 
                 this.DialogResult = true;
