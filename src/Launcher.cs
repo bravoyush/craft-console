@@ -103,7 +103,7 @@ namespace EffectCraftLauncher
         private const uint MOD_NOREPEAT = 0x4000;
         public const int VK_SPACE = 0x20;
         public const int CONTROL_PORT = 9877;
-        public const string VERSION = "1.0.1";
+        public const string VERSION = "1.0.2";
         public const string ARTCRAFT_MARK_PATH = "M 104.28,49.49 L 81.55,0 H 50.32 L 47.15,4.76 L 14.75,53.63 L 0,75.85 L 21.55,97.4 L 85.34,60.46 L 102.33,97.5 L 116.34,75.76 L 104.28,49.49 Z M 32.89,65.66 L 65.31,16.79 L 76.22,40.56 L 32.89,65.66 Z";
 
         private static IntPtr _kbHookId = IntPtr.Zero;
@@ -310,68 +310,105 @@ namespace EffectCraftLauncher
         {
             try
             {
-                if (string.IsNullOrEmpty(targetDir)) return;
-                string splashDir = Path.Combine(targetDir, "splash");
-                if (!Directory.Exists(splashDir))
+                // 1. Primary: Ensure user-writable directory in %APPDATA%\EffectCraft\
+                string appDataDir = SplashConfig.GetConfigDir();
+                string appDataSplashDir = Path.Combine(appDataDir, "splash");
+                if (!Directory.Exists(appDataSplashDir))
                 {
-                    Directory.CreateDirectory(splashDir);
+                    try { Directory.CreateDirectory(appDataSplashDir); } catch { }
                 }
 
-                string artFile = Path.Combine(splashDir, "art.png");
-                if (!File.Exists(artFile))
+                string appDataArt = Path.Combine(appDataSplashDir, "art.png");
+                if (!File.Exists(appDataArt))
                 {
-                    using (Stream res = GetEmbeddedSplashStream())
+                    try
                     {
-                        if (res != null)
+                        using (Stream res = GetEmbeddedSplashStream())
                         {
-                            using (FileStream fs = new FileStream(artFile, FileMode.Create, FileAccess.Write))
+                            if (res != null)
                             {
-                                byte[] buffer = new byte[81920];
-                                int read;
-                                while ((read = res.Read(buffer, 0, buffer.Length)) > 0)
+                                using (FileStream fs = new FileStream(appDataArt, FileMode.Create, FileAccess.Write))
                                 {
-                                    fs.Write(buffer, 0, read);
+                                    byte[] buffer = new byte[81920];
+                                    int read;
+                                    while ((read = res.Read(buffer, 0, buffer.Length)) > 0)
+                                    {
+                                        fs.Write(buffer, 0, read);
+                                    }
                                 }
+                                Log("Extracted embedded SplashArt to %APPDATA%: " + appDataArt);
                             }
-                            Log("Extracted embedded SplashArt to: " + artFile);
                         }
+                    }
+                    catch (Exception ex)
+                    {
+                        Log("Extract embedded art to %APPDATA% error: " + ex.Message);
                     }
                 }
 
-                string iniFile = Path.Combine(splashDir, "splash.ini");
-                if (!File.Exists(iniFile))
+                string appDataIni = Path.Combine(appDataDir, "splash.ini");
+                if (!File.Exists(appDataIni))
                 {
-                    var sb = new StringBuilder();
-                    sb.AppendLine("[Splash]");
-                    sb.AppendLine("Theme = Dark");
-                    sb.AppendLine("Title = EffectCraft");
-                    sb.AppendLine("Subtitle = Motion & Visual Effects");
-                    sb.AppendLine("BadgeText = Ec");
-                    sb.AppendLine("AccentColor = #4E7BFB");
-                    sb.AppendLine("BadgeBackground = #0F2338");
-                    sb.AppendLine("ArtistCredit = Neon Unicorn Edition");
-                    sb.AppendLine("ArtImage = splash\\art.png");
-                    sb.AppendLine("Shortcut = Ctrl + Space");
-                    sb.AppendLine("TitleFontSize = 32");
-                    sb.AppendLine("SubtitleFontSize = 11.5");
-                    sb.AppendLine("ArtistFontSize = 10");
-                    sb.AppendLine("CornerRadius = 18");
-                    sb.AppendLine("ShowLoadingBar = True");
-                    sb.AppendLine("ShowLoadingText = True");
-                    sb.AppendLine("ShowFooter = True");
-                    sb.AppendLine("SplashDuration = 2.5");
-                    sb.AppendLine("ConsoleShowEffects = True");
-                    sb.AppendLine("ConsoleShowPresets = True");
-                    sb.AppendLine("ConsoleShowLayers = True");
-                    sb.AppendLine("ConsoleShowCommands = True");
-                    sb.AppendLine("ConsoleShowRecent = True");
-                    sb.AppendLine("PrefixEffects = @fx");
-                    sb.AppendLine("PrefixPresets = @preset");
-                    sb.AppendLine("PrefixLayers = @layer");
-                    sb.AppendLine("PrefixCommands = @cmd");
-                    sb.AppendLine("PrefixRecent = @recent");
-                    File.WriteAllText(iniFile, sb.ToString(), Encoding.UTF8);
-                    Log("Created default splash.ini at: " + iniFile);
+                    try
+                    {
+                        var sb = new StringBuilder();
+                        sb.AppendLine("[Splash]");
+                        sb.AppendLine("Theme = Dark");
+                        sb.AppendLine("Title = EffectCraft");
+                        sb.AppendLine("Subtitle = Motion & Visual Effects");
+                        sb.AppendLine("BadgeText = Ec");
+                        sb.AppendLine("AccentColor = #4E7BFB");
+                        sb.AppendLine("BadgeBackground = #0F2338");
+                        sb.AppendLine("ArtistCredit = Neon Unicorn Edition");
+                        sb.AppendLine("ArtImage = splash\\art.png");
+                        sb.AppendLine("Shortcut = Ctrl + Space");
+                        sb.AppendLine("TitleFontSize = 32");
+                        sb.AppendLine("SubtitleFontSize = 11.5");
+                        sb.AppendLine("ArtistFontSize = 10");
+                        sb.AppendLine("CornerRadius = 18");
+                        sb.AppendLine("ShowLoadingBar = True");
+                        sb.AppendLine("ShowLoadingText = True");
+                        sb.AppendLine("ShowFooter = True");
+                        sb.AppendLine("SplashDuration = 2.5");
+                        sb.AppendLine("ShowSplashScreen = True");
+                        sb.AppendLine("StartupTab = Home");
+                        sb.AppendLine("ShowFavoritesOnOpen = True");
+                        sb.AppendLine("PrefixFavorites = @fav");
+                        sb.AppendLine("FavoriteShortcut = Ctrl + D");
+                        sb.AppendLine("Favorites = Fast Box Blur,Curves,Glow,Drop Shadow,Hue/Saturation,Solid");
+                        sb.AppendLine("ConsoleShowEffects = True");
+                        sb.AppendLine("ConsoleShowPresets = True");
+                        sb.AppendLine("ConsoleShowLayers = True");
+                        sb.AppendLine("ConsoleShowCommands = True");
+                        sb.AppendLine("ConsoleShowRecent = True");
+                        sb.AppendLine("PrefixEffects = @fx");
+                        sb.AppendLine("PrefixPresets = @preset");
+                        sb.AppendLine("PrefixLayers = @layer");
+                        sb.AppendLine("PrefixCommands = @cmd");
+                        sb.AppendLine("PrefixRecent = @recent");
+                        File.WriteAllText(appDataIni, sb.ToString(), Encoding.UTF8);
+                        Log("Created default splash.ini at %APPDATA%: " + appDataIni);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log("Create default %APPDATA% splash.ini error: " + ex.Message);
+                    }
+                }
+
+                // 2. Secondary: If targetDir is specified and writable, mirror files there as a best-effort
+                if (!string.IsNullOrEmpty(targetDir))
+                {
+                    try
+                    {
+                        string splashDir = Path.Combine(targetDir, "splash");
+                        if (!Directory.Exists(splashDir)) Directory.CreateDirectory(splashDir);
+                        string artFile = Path.Combine(splashDir, "art.png");
+                        if (!File.Exists(artFile) && File.Exists(appDataArt))
+                        {
+                            try { File.Copy(appDataArt, artFile, false); } catch { }
+                        }
+                    }
+                    catch { }
                 }
             }
             catch (Exception ex)
@@ -1263,11 +1300,45 @@ namespace EffectCraftLauncher
             catch { }
         }
 
-        public static SplashConfig Load(string baseDir)
+        public static string GetConfigDir()
+        {
+            string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            string dir = Path.Combine(appData, "EffectCraft");
+            if (!Directory.Exists(dir))
+            {
+                try { Directory.CreateDirectory(dir); } catch { }
+            }
+            return dir;
+        }
+
+        public static SplashConfig Load(string baseDir = null)
         {
             var cfg = new SplashConfig();
-            string iniPath = Path.Combine(baseDir, "splash", "splash.ini");
-            if (!File.Exists(iniPath)) iniPath = Path.Combine(baseDir, "splash.ini");
+            string appDataDir = GetConfigDir();
+            string userIniPath = Path.Combine(appDataDir, "splash.ini");
+            string iniPath = userIniPath;
+
+            if (!File.Exists(iniPath) && !string.IsNullOrEmpty(baseDir))
+            {
+                string cand1 = Path.Combine(baseDir, "splash", "splash.ini");
+                if (File.Exists(cand1)) iniPath = cand1;
+                else
+                {
+                    string cand2 = Path.Combine(baseDir, "splash.ini");
+                    if (File.Exists(cand2)) iniPath = cand2;
+                }
+            }
+
+            if (!File.Exists(iniPath) && !string.IsNullOrEmpty(Program.AppDir))
+            {
+                string candApp = Path.Combine(Program.AppDir, "splash", "splash.ini");
+                if (File.Exists(candApp)) iniPath = candApp;
+                else
+                {
+                    string candApp2 = Path.Combine(Program.AppDir, "splash.ini");
+                    if (File.Exists(candApp2)) iniPath = candApp2;
+                }
+            }
 
             if (File.Exists(iniPath))
             {
@@ -1330,88 +1401,127 @@ namespace EffectCraftLauncher
                         else if (key == "prefixrecent") { if (!string.IsNullOrEmpty(val)) cfg.PrefixRecent = val; }
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    Program.Log("Load splash.ini error: " + ex.Message);
+                }
             }
 
             if (!Path.IsPathRooted(cfg.ArtImage))
             {
-                string candidate = Path.Combine(baseDir, cfg.ArtImage);
-                if (File.Exists(candidate))
+                string candAppData = Path.Combine(appDataDir, cfg.ArtImage);
+                if (File.Exists(candAppData))
                 {
-                    cfg.ArtImage = candidate;
+                    cfg.ArtImage = candAppData;
+                }
+                else if (!string.IsNullOrEmpty(baseDir) && File.Exists(Path.Combine(baseDir, cfg.ArtImage)))
+                {
+                    cfg.ArtImage = Path.Combine(baseDir, cfg.ArtImage);
+                }
+                else if (!string.IsNullOrEmpty(Program.AppDir) && File.Exists(Path.Combine(Program.AppDir, cfg.ArtImage)))
+                {
+                    cfg.ArtImage = Path.Combine(Program.AppDir, cfg.ArtImage);
                 }
                 else if (!string.IsNullOrEmpty(Program.EffectCraftExePath))
                 {
                     string ecDir = Path.GetDirectoryName(Program.EffectCraftExePath);
-                    string candidate2 = Path.Combine(ecDir, cfg.ArtImage);
-                    if (File.Exists(candidate2)) cfg.ArtImage = candidate2;
-                    else cfg.ArtImage = candidate;
+                    if (!string.IsNullOrEmpty(ecDir) && File.Exists(Path.Combine(ecDir, cfg.ArtImage)))
+                        cfg.ArtImage = Path.Combine(ecDir, cfg.ArtImage);
+                    else
+                        cfg.ArtImage = candAppData;
                 }
                 else
                 {
-                    cfg.ArtImage = candidate;
+                    cfg.ArtImage = candAppData;
                 }
             }
 
             return cfg;
         }
 
-        public void Save(string baseDir)
+        public bool Save(string baseDir = null)
         {
+            bool success = false;
+            string iniContent = GenerateIniString();
+
             try
             {
-                string splashDir = Path.Combine(baseDir, "splash");
-                if (!Directory.Exists(splashDir)) Directory.CreateDirectory(splashDir);
-                string iniPath = Path.Combine(splashDir, "splash.ini");
-
-                string relArt = ArtImage;
-                if (relArt.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase))
-                {
-                    relArt = relArt.Substring(baseDir.Length).TrimStart('\\', '/');
-                }
-
-                var sb = new StringBuilder();
-                sb.AppendLine("[Splash]");
-                sb.AppendLine("Theme = " + Theme);
-                sb.AppendLine("Title = " + Title);
-                sb.AppendLine("Subtitle = " + Subtitle);
-                sb.AppendLine("BadgeText = " + BadgeText);
-                sb.AppendLine("AccentColor = " + AccentColor);
-                sb.AppendLine("BadgeBackground = " + BadgeBackground);
-                sb.AppendLine("ArtistCredit = " + ArtistCredit);
-                sb.AppendLine("ArtImage = " + relArt);
-                sb.AppendLine("Shortcut = " + Shortcut);
-                sb.AppendLine("TitleFontSize = " + TitleFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture));
-                sb.AppendLine("SubtitleFontSize = " + SubtitleFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture));
-                sb.AppendLine("ArtistFontSize = " + ArtistFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture));
-                sb.AppendLine("CornerRadius = " + CornerRadius.ToString(System.Globalization.CultureInfo.InvariantCulture));
-                sb.AppendLine("ShowLoadingBar = " + ShowLoadingBar);
-                sb.AppendLine("ShowLoadingText = " + ShowLoadingText);
-                sb.AppendLine("ShowFooter = " + ShowFooter);
-                sb.AppendLine("SplashDuration = " + SplashDuration.ToString(System.Globalization.CultureInfo.InvariantCulture));
-                sb.AppendLine("ShowSplashScreen = " + ShowSplashScreen);
-                sb.AppendLine("StartupTab = " + StartupTab);
-                sb.AppendLine("ShowFavoritesOnOpen = " + ShowFavoritesOnOpen);
-                sb.AppendLine("PrefixFavorites = " + PrefixFavorites);
-                sb.AppendLine("FavoriteShortcut = " + FavoriteShortcut);
-                sb.AppendLine("Favorites = " + string.Join(",", (Favorites != null ? Favorites.ToArray() : new string[0])));
-                sb.AppendLine("ConsoleShowEffects = " + ConsoleShowEffects);
-                sb.AppendLine("ConsoleShowPresets = " + ConsoleShowPresets);
-                sb.AppendLine("ConsoleShowLayers = " + ConsoleShowLayers);
-                sb.AppendLine("ConsoleShowCommands = " + ConsoleShowCommands);
-                sb.AppendLine("ConsoleShowRecent = " + ConsoleShowRecent);
-                sb.AppendLine("PrefixEffects = " + PrefixEffects);
-                sb.AppendLine("PrefixPresets = " + PrefixPresets);
-                sb.AppendLine("PrefixLayers = " + PrefixLayers);
-                sb.AppendLine("PrefixCommands = " + PrefixCommands);
-                sb.AppendLine("PrefixRecent = " + PrefixRecent);
-
-                File.WriteAllText(iniPath, sb.ToString());
+                string appDataDir = GetConfigDir();
+                string iniPath = Path.Combine(appDataDir, "splash.ini");
+                File.WriteAllText(iniPath, iniContent, Encoding.UTF8);
+                success = true;
+                Program.Log("Saved configuration to %APPDATA%: " + iniPath);
             }
             catch (Exception ex)
             {
-                Program.Log("Save splash.ini error: " + ex.Message);
+                Program.Log("Save %APPDATA% splash.ini error: " + ex.Message);
             }
+
+            if (!string.IsNullOrEmpty(baseDir))
+            {
+                try
+                {
+                    string splashDir = Path.Combine(baseDir, "splash");
+                    if (Directory.Exists(splashDir))
+                    {
+                        File.WriteAllText(Path.Combine(splashDir, "splash.ini"), iniContent, Encoding.UTF8);
+                    }
+                }
+                catch { }
+            }
+
+            return success;
+        }
+
+        private string GenerateIniString()
+        {
+            string appDataDir = GetConfigDir();
+            string relArt = ArtImage;
+            if (!string.IsNullOrEmpty(appDataDir) && relArt.StartsWith(appDataDir, StringComparison.OrdinalIgnoreCase))
+            {
+                relArt = relArt.Substring(appDataDir.Length).TrimStart('\\', '/');
+            }
+            else if (!string.IsNullOrEmpty(Program.AppDir) && relArt.StartsWith(Program.AppDir, StringComparison.OrdinalIgnoreCase))
+            {
+                relArt = relArt.Substring(Program.AppDir.Length).TrimStart('\\', '/');
+            }
+
+            var sb = new StringBuilder();
+            sb.AppendLine("[Splash]");
+            sb.AppendLine("Theme = " + Theme);
+            sb.AppendLine("Title = " + Title);
+            sb.AppendLine("Subtitle = " + Subtitle);
+            sb.AppendLine("BadgeText = " + BadgeText);
+            sb.AppendLine("AccentColor = " + AccentColor);
+            sb.AppendLine("BadgeBackground = " + BadgeBackground);
+            sb.AppendLine("ArtistCredit = " + ArtistCredit);
+            sb.AppendLine("ArtImage = " + relArt);
+            sb.AppendLine("Shortcut = " + Shortcut);
+            sb.AppendLine("TitleFontSize = " + TitleFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            sb.AppendLine("SubtitleFontSize = " + SubtitleFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            sb.AppendLine("ArtistFontSize = " + ArtistFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            sb.AppendLine("CornerRadius = " + CornerRadius.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            sb.AppendLine("ShowLoadingBar = " + ShowLoadingBar);
+            sb.AppendLine("ShowLoadingText = " + ShowLoadingText);
+            sb.AppendLine("ShowFooter = " + ShowFooter);
+            sb.AppendLine("SplashDuration = " + SplashDuration.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            sb.AppendLine("ShowSplashScreen = " + ShowSplashScreen);
+            sb.AppendLine("StartupTab = " + StartupTab);
+            sb.AppendLine("ShowFavoritesOnOpen = " + ShowFavoritesOnOpen);
+            sb.AppendLine("PrefixFavorites = " + PrefixFavorites);
+            sb.AppendLine("FavoriteShortcut = " + FavoriteShortcut);
+            sb.AppendLine("Favorites = " + string.Join(",", (Favorites != null ? Favorites.ToArray() : new string[0])));
+            sb.AppendLine("ConsoleShowEffects = " + ConsoleShowEffects);
+            sb.AppendLine("ConsoleShowPresets = " + ConsoleShowPresets);
+            sb.AppendLine("ConsoleShowLayers = " + ConsoleShowLayers);
+            sb.AppendLine("ConsoleShowCommands = " + ConsoleShowCommands);
+            sb.AppendLine("ConsoleShowRecent = " + ConsoleShowRecent);
+            sb.AppendLine("PrefixEffects = " + PrefixEffects);
+            sb.AppendLine("PrefixPresets = " + PrefixPresets);
+            sb.AppendLine("PrefixLayers = " + PrefixLayers);
+            sb.AppendLine("PrefixCommands = " + PrefixCommands);
+            sb.AppendLine("PrefixRecent = " + PrefixRecent);
+            return sb.ToString();
         }
 
         public Color GetAccentColor()
@@ -4763,7 +4873,7 @@ namespace EffectCraftLauncher
             btnSave.Click += delegate {
                 Program.CurrentConfig = _config;
                 Program.ApplyShortcut(_config.Shortcut);
-                _config.Save(Program.AppDir);
+                bool ok = _config.Save(Program.AppDir);
                 if (!string.IsNullOrEmpty(Program.EffectCraftExePath))
                 {
                     string ecDir = Path.GetDirectoryName(Program.EffectCraftExePath);
@@ -4772,8 +4882,15 @@ namespace EffectCraftLauncher
                         try { _config.Save(ecDir); } catch { }
                     }
                 }
-                MessageBox.Show("Settings, visuals, and shortcut configurations saved and applied!", "EffectCraft Settings", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                this.Close();
+                if (ok)
+                {
+                    MessageBox.Show("Settings, visuals, and shortcut configurations saved and applied!", "EffectCraft Settings", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    this.Close();
+                }
+                else
+                {
+                    MessageBox.Show("Warning: Could not save configuration file to %APPDATA% directory.", "EffectCraft Settings", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
             };
             rightActions.Children.Add(btnSave);
 
@@ -6096,8 +6213,11 @@ namespace EffectCraftLauncher
                         GC.Collect();
                         GC.WaitForPendingFinalizers();
 
-                        string targetDir = Path.Combine(Program.AppDir, "splash");
-                        if (!Directory.Exists(targetDir)) Directory.CreateDirectory(targetDir);
+                        string targetDir = Path.Combine(SplashConfig.GetConfigDir(), "splash");
+                        if (!Directory.Exists(targetDir))
+                        {
+                            try { Directory.CreateDirectory(targetDir); } catch { }
+                        }
                         string ext = Path.GetExtension(dlg.FileName);
 
                         // Save with timestamped unique name to completely avoid file lock collisions

@@ -9,7 +9,7 @@ Craft Console brings lightning-fast effect searching, preset browsing, command p
 ## 🚀 How to Install & Upgrade
 
 ### Option A: Portable Bundle (.zip)
-1. Download **`CraftConsole-v1.0.1-portable.zip`** from [Releases](https://github.com/bravoyush/craft-console/releases).
+1. Download **`CraftConsole-v1.0.2-portable.zip`** from [Releases](https://github.com/bravoyush/craft-console/releases).
 2. Extract the archive anywhere on your machine (or directly inside your `effectcraft` directory).
 3. Run `CraftConsole.exe`.
 
@@ -27,11 +27,11 @@ Craft Console brings lightning-fast effect searching, preset browsing, command p
 ## 🔄 How to Upgrade from an Existing Version
 
 * **Upgrading the Portable Version**:
-  1. Download **`CraftConsole-v1.0.1-portable.zip`**.
+  1. Download **`CraftConsole-v1.0.2-portable.zip`**.
   2. Extract and replace `CraftConsole.exe` in your existing folder.
   3. *Your existing favorites, custom themes, and configuration (`splash.ini` / `config.ini`) are completely preserved.*
 * **Upgrading the Installed Version**:
-  1. Download **`CraftConsole.exe`** v1.0.1.
+  1. Download **`CraftConsole.exe`** v1.0.2.
   2. Run it once and click **Save & Launch** to update the installed executable and refresh shortcuts.
 
 ---
@@ -77,7 +77,7 @@ Type **`@`** or **`#`** in the search bar to filter by category:
 
 ---
 
-## ✨ Release Highlights & Fixes (v1.0.1)
+## ✨ Release Highlights & Fixes (v1.0.2)
 
 - **Fixed "Rough Edges" Error ([Issue #1](https://github.com/bravoyush/craft-console/issues/1))**:
   - EffectCraft's engine registers this effect under its official name **`"Roughen Edges"`** (`ec.stylize.roughenedges`).
@@ -127,7 +127,7 @@ craft-console/
 │   ├── art.png                    # Splash screen artwork
 │   └── splash.ini                 # Default configuration file
 ├── dist/
-│   └── CraftConsole-v1.0.1-portable.zip # Portable distribution package
+│   └── CraftConsole-v1.0.2-portable.zip # Portable distribution package
 ├── build.bat                      # Windows build script
 ├── .gitignore                     # Git ignore rules
 ├── LICENSE                        # MIT License
