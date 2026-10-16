@@ -46,27 +46,77 @@ namespace CraftConsole.SetupClassic
             catch { }
         }
 
-        public static void RegisterUninstall(string installDir, string exePath)
+        public static void RegisterUninstall(string installDir, string exePath, string uninstallExePath)
         {
+            string[] subKeys = new string[] {
+                @"Software\Microsoft\Windows\CurrentVersion\Uninstall\CraftConsole",
+                @"Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\CraftConsole"
+            };
+
+            int estSize = 3500;
             try
             {
-                string keyPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\CraftConsole";
-                using (RegistryKey key = Registry.CurrentUser.CreateSubKey(keyPath))
+                if (File.Exists(exePath))
                 {
-                    if (key != null)
-                    {
-                        key.SetValue("DisplayName", "Craft Console for EffectCraft & After Effects");
-                        key.SetValue("DisplayVersion", VERSION);
-                        key.SetValue("DisplayIcon", exePath + ",0");
-                        key.SetValue("InstallLocation", installDir);
-                        key.SetValue("Publisher", "Storytold / EffectCraft Team");
-                        key.SetValue("UninstallString", "\"" + exePath + "\" --uninstall");
-                        key.SetValue("NoModify", 1, RegistryValueKind.DWord);
-                        key.SetValue("NoRepair", 1, RegistryValueKind.DWord);
-                    }
+                    long sz = new FileInfo(exePath).Length;
+                    if (File.Exists(uninstallExePath)) sz += new FileInfo(uninstallExePath).Length;
+                    estSize = (int)(sz / 1024);
                 }
             }
             catch { }
+
+            string installDate = DateTime.Now.ToString("yyyyMMdd");
+            string uninstallCmd = "\"" + uninstallExePath + "\"";
+            string quietUninstallCmd = "\"" + uninstallExePath + "\" /quiet";
+
+            foreach (string sk in subKeys)
+            {
+                try
+                {
+                    using (RegistryKey key = Registry.CurrentUser.CreateSubKey(sk))
+                    {
+                        if (key != null)
+                        {
+                            key.SetValue("DisplayName", "Craft Console");
+                            key.SetValue("DisplayVersion", VERSION);
+                            key.SetValue("DisplayIcon", exePath + ",0");
+                            key.SetValue("InstallLocation", installDir);
+                            key.SetValue("Publisher", "Storytold / EffectCraft Team");
+                            key.SetValue("UninstallString", uninstallCmd);
+                            key.SetValue("QuietUninstallString", quietUninstallCmd);
+                            key.SetValue("InstallDate", installDate);
+                            key.SetValue("EstimatedSize", estSize, RegistryValueKind.DWord);
+                            key.SetValue("NoModify", 1, RegistryValueKind.DWord);
+                            key.SetValue("NoRepair", 1, RegistryValueKind.DWord);
+                            key.SetValue("WindowsInstaller", 0, RegistryValueKind.DWord);
+                        }
+                    }
+                }
+                catch { }
+
+                try
+                {
+                    using (RegistryKey key = Registry.LocalMachine.CreateSubKey(sk))
+                    {
+                        if (key != null)
+                        {
+                            key.SetValue("DisplayName", "Craft Console");
+                            key.SetValue("DisplayVersion", VERSION);
+                            key.SetValue("DisplayIcon", exePath + ",0");
+                            key.SetValue("InstallLocation", installDir);
+                            key.SetValue("Publisher", "Storytold / EffectCraft Team");
+                            key.SetValue("UninstallString", uninstallCmd);
+                            key.SetValue("QuietUninstallString", quietUninstallCmd);
+                            key.SetValue("InstallDate", installDate);
+                            key.SetValue("EstimatedSize", estSize, RegistryValueKind.DWord);
+                            key.SetValue("NoModify", 1, RegistryValueKind.DWord);
+                            key.SetValue("NoRepair", 1, RegistryValueKind.DWord);
+                            key.SetValue("WindowsInstaller", 0, RegistryValueKind.DWord);
+                        }
+                    }
+                }
+                catch { }
+            }
         }
     }
 
@@ -457,6 +507,7 @@ namespace CraftConsole.SetupClassic
                     if (!Directory.Exists(targetDir)) Directory.CreateDirectory(targetDir);
 
                     string targetExe = System.IO.Path.Combine(targetDir, "CraftConsole.exe");
+                    string uninstallExe = System.IO.Path.Combine(targetDir, "Uninstall.exe");
 
                     // 1. Extract payload
                     using (Stream src = Program.GetResourceStream("AppPayload"))
@@ -473,7 +524,22 @@ namespace CraftConsole.SetupClassic
                         }
                     }
 
-                    // 2. Setup %APPDATA%
+                    // 2. Extract uninstaller
+                    using (Stream unSrc = Program.GetResourceStream("UninstallPayload"))
+                    {
+                        if (unSrc != null)
+                        {
+                            using (FileStream fs = new FileStream(uninstallExe, FileMode.Create, FileAccess.Write))
+                            {
+                                byte[] buf = new byte[81920];
+                                int read;
+                                while ((read = unSrc.Read(buf, 0, buf.Length)) > 0)
+                                    fs.Write(buf, 0, read);
+                            }
+                        }
+                    }
+
+                    // 3. Setup %APPDATA%
                     string appData = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "EffectCraft");
                     if (!Directory.Exists(appData)) Directory.CreateDirectory(appData);
 
@@ -507,7 +573,7 @@ namespace CraftConsole.SetupClassic
                         }
                     }));
 
-                    // 3. Shortcuts
+                    // 4. Shortcuts
                     bool doUnified = false, doDesk = false, doStart = false;
                     Dispatcher.Invoke(new Action(delegate {
                         doUnified = _chkUnified.IsChecked == true;
@@ -530,10 +596,27 @@ namespace CraftConsole.SetupClassic
                     if (doStart)
                     {
                         string progs = Environment.GetFolderPath(Environment.SpecialFolder.Programs);
+                        
+                        // Root Start Menu shortcuts
                         string lnk = System.IO.Path.Combine(progs, "Craft Console.lnk");
                         Program.CreateShortcut(lnk, targetExe, "Craft Console — EffectCraft HUD Companion");
-                        Program.RegisterUninstall(targetDir, targetExe);
+
+                        string lnkUn = System.IO.Path.Combine(progs, "Uninstall Craft Console.lnk");
+                        Program.CreateShortcut(lnkUn, uninstallExe, "Uninstall Craft Console", uninstallExe + ",0");
+
+                        // Start Menu folder "Craft Console"
+                        string folder = System.IO.Path.Combine(progs, "Craft Console");
+                        if (!Directory.Exists(folder)) Directory.CreateDirectory(folder);
+
+                        string fApp = System.IO.Path.Combine(folder, "Craft Console.lnk");
+                        Program.CreateShortcut(fApp, targetExe, "Craft Console — EffectCraft HUD Companion");
+
+                        string fUn = System.IO.Path.Combine(folder, "Uninstall Craft Console.lnk");
+                        Program.CreateShortcut(fUn, uninstallExe, "Uninstall Craft Console", uninstallExe + ",0");
                     }
+
+                    // 5. Always register in Windows Installed Apps & Control Panel
+                    Program.RegisterUninstall(targetDir, targetExe, uninstallExe);
 
                     Thread.Sleep(300);
 
