@@ -49,6 +49,119 @@ namespace CraftConsole.SetupModern
             catch { }
         }
 
+        public static string DetectEffectCraftExe()
+        {
+            try
+            {
+                foreach (var p in Process.GetProcessesByName("effectcraft"))
+                {
+                    try
+                    {
+                        string fn = p.MainModule.FileName;
+                        if (!string.IsNullOrEmpty(fn) && File.Exists(fn)) return fn;
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+
+            try
+            {
+                string appData = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "EffectCraft");
+                string ini = System.IO.Path.Combine(appData, "splash.ini");
+                if (File.Exists(ini))
+                {
+                    foreach (string line in File.ReadAllLines(ini))
+                    {
+                        string trimmed = line.Trim();
+                        if (trimmed.StartsWith("effectcraftexe", StringComparison.OrdinalIgnoreCase))
+                        {
+                            int idx = trimmed.IndexOf('=');
+                            if (idx > 0 && idx < trimmed.Length - 1)
+                            {
+                                string val = trimmed.Substring(idx + 1).Trim().Trim('"', '\'');
+                                if (File.Exists(val)) return val;
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            string[] relativeCandidates = new string[] {
+                System.IO.Path.Combine(baseDir, "effectcraft.exe"),
+                System.IO.Path.Combine(baseDir, "..", "effectcraft.exe"),
+                System.IO.Path.Combine(baseDir, "..", "target", "release", "effectcraft.exe"),
+                System.IO.Path.Combine(baseDir, "..", "..", "effectcraft-main", "target", "release", "effectcraft.exe"),
+                @"G:\local-ai\effectcraft-main\target\release\effectcraft.exe",
+                System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "EffectCraft", "effectcraft.exe"),
+                System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "EffectCraft", "effectcraft.exe"),
+                System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "EffectCraft", "effectcraft.exe")
+            };
+
+            foreach (string cand in relativeCandidates)
+            {
+                try
+                {
+                    if (File.Exists(cand)) return System.IO.Path.GetFullPath(cand);
+                }
+                catch { }
+            }
+
+            return null;
+        }
+
+        public static void SaveEffectCraftPathToIni(string ecPath)
+        {
+            if (string.IsNullOrEmpty(ecPath)) return;
+            try
+            {
+                string appData = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "EffectCraft");
+                if (!Directory.Exists(appData)) Directory.CreateDirectory(appData);
+                string iniPath = System.IO.Path.Combine(appData, "splash.ini");
+
+                var lines = new System.Collections.Generic.List<string>();
+                bool foundKey = false;
+                bool inCraftConsoleSection = false;
+
+                if (File.Exists(iniPath))
+                {
+                    foreach (string line in File.ReadAllLines(iniPath))
+                    {
+                        string trimmed = line.Trim();
+                        if (trimmed.StartsWith("[", StringComparison.Ordinal) && trimmed.EndsWith("]", StringComparison.Ordinal))
+                        {
+                            inCraftConsoleSection = trimmed.Equals("[CraftConsole]", StringComparison.OrdinalIgnoreCase);
+                        }
+
+                        if (inCraftConsoleSection && trimmed.StartsWith("effectcraftexe", StringComparison.OrdinalIgnoreCase))
+                        {
+                            lines.Add("effectcraftexe = " + ecPath);
+                            foundKey = true;
+                        }
+                        else
+                        {
+                            lines.Add(line);
+                        }
+                    }
+                }
+
+                if (!foundKey)
+                {
+                    if (!inCraftConsoleSection)
+                    {
+                        lines.Add("");
+                        lines.Add("[CraftConsole]");
+                    }
+                    lines.Add("effectcraftexe = " + ecPath);
+                }
+
+                File.WriteAllLines(iniPath, lines.ToArray(), Encoding.UTF8);
+            }
+            catch { }
+        }
+
         public static void RegisterUninstall(string installDir, string exePath, string uninstallExePath)
         {
             string[] subKeys = new string[] {
@@ -126,6 +239,10 @@ namespace CraftConsole.SetupModern
     public class ModernInstallerWindow : Window
     {
         private TextBox _txtInstallDir;
+        private TextBox _txtEcExe;
+        private Button _btnBrowseEc;
+        private TextBlock _lblEcStatus;
+        private CheckBox _chkSkipEc;
         private CheckBox _chkUnified;
         private CheckBox _chkDesktop;
         private CheckBox _chkStartMenu;
@@ -141,9 +258,9 @@ namespace CraftConsole.SetupModern
         {
             this.Title = "Craft Console v" + Program.VERSION + " — Modern Studio Setup";
             this.Width = 640;
-            this.Height = 580;
+            this.Height = 630;
             this.MinWidth = 580;
-            this.MinHeight = 520;
+            this.MinHeight = 560;
             this.WindowStartupLocation = WindowStartupLocation.CenterScreen;
             this.Background = new SolidColorBrush(Color.FromRgb(20, 20, 24));
             this.Foreground = Brushes.White;
@@ -280,6 +397,106 @@ namespace CraftConsole.SetupModern
             destStack.Children.Add(pathRow);
             destCard.Child = destStack;
             body.Children.Add(destCard);
+
+            // Target EffectCraft Executable Card
+            var ecCard = new Border
+            {
+                Background = new SolidColorBrush(Color.FromRgb(26, 26, 32)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(42, 42, 52)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(16, 12, 16, 12),
+                Margin = new Thickness(0, 0, 0, 12)
+            };
+            var ecStack = new StackPanel();
+            ecStack.Children.Add(new TextBlock
+            {
+                Text = "TARGET EFFECTCRAFT EXECUTABLE",
+                FontSize = 11,
+                FontWeight = FontWeights.Bold,
+                Foreground = new SolidColorBrush(Color.FromRgb(0, 210, 255)),
+                Margin = new Thickness(0, 0, 0, 4)
+            });
+            ecStack.Children.Add(new TextBlock
+            {
+                Text = "Link Craft Console with your EffectCraft application to launch HUD overlays and customize splash art.",
+                FontSize = 11.5,
+                Foreground = new SolidColorBrush(Color.FromRgb(140, 140, 155)),
+                Margin = new Thickness(0, 0, 0, 8)
+            });
+
+            string detectedEc = Program.DetectEffectCraftExe();
+            var ecRow = new Grid { Margin = new Thickness(0, 0, 0, 4) };
+            ecRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            ecRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+            ecRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            _txtEcExe = new TextBox
+            {
+                Text = detectedEc ?? "",
+                Height = 30,
+                VerticalContentAlignment = VerticalAlignment.Center,
+                Background = new SolidColorBrush(Color.FromRgb(16, 16, 20)),
+                Foreground = Brushes.White,
+                BorderBrush = new SolidColorBrush(Color.FromRgb(55, 55, 68)),
+                Padding = new Thickness(8, 0, 8, 0),
+                FontSize = 12
+            };
+            Grid.SetColumn(_txtEcExe, 0);
+            ecRow.Children.Add(_txtEcExe);
+
+            _btnBrowseEc = new Button
+            {
+                Content = "Browse...",
+                Width = 85, Height = 30,
+                Background = new SolidColorBrush(Color.FromRgb(40, 40, 50)),
+                Foreground = Brushes.White,
+                BorderBrush = new SolidColorBrush(Color.FromRgb(60, 60, 75)),
+                Cursor = System.Windows.Input.Cursors.Hand
+            };
+            _btnBrowseEc.Click += delegate {
+                var ofd = new OpenFileDialog
+                {
+                    Title = "Locate EffectCraft Executable",
+                    Filter = "EffectCraft Executable (effectcraft.exe)|effectcraft.exe|Executable Files (*.exe)|*.exe|All Files (*.*)|*.*",
+                    InitialDirectory = !string.IsNullOrEmpty(_txtEcExe.Text) && Directory.Exists(System.IO.Path.GetDirectoryName(_txtEcExe.Text)) ? System.IO.Path.GetDirectoryName(_txtEcExe.Text) : Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
+                };
+                if (ofd.ShowDialog() == true)
+                {
+                    _txtEcExe.Text = ofd.FileName;
+                    UpdateEcStatus();
+                }
+            };
+            Grid.SetColumn(_btnBrowseEc, 2);
+            ecRow.Children.Add(_btnBrowseEc);
+            ecStack.Children.Add(ecRow);
+
+            _lblEcStatus = new TextBlock { FontSize = 11, Margin = new Thickness(0, 0, 0, 8) };
+            ecStack.Children.Add(_lblEcStatus);
+            UpdateEcStatus();
+
+            _chkSkipEc = new CheckBox
+            {
+                Content = "Skip EffectCraft link (Use Craft Console primarily with Adobe After Effects)",
+                IsChecked = false,
+                Foreground = new SolidColorBrush(Color.FromRgb(180, 180, 195)),
+                FontSize = 11.5
+            };
+            _chkSkipEc.Checked += delegate {
+                _txtEcExe.IsEnabled = false;
+                _btnBrowseEc.IsEnabled = false;
+                _lblEcStatus.Text = "EffectCraft linking skipped. Craft Console will run in standalone AE mode.";
+                _lblEcStatus.Foreground = new SolidColorBrush(Color.FromRgb(120, 120, 135));
+            };
+            _chkSkipEc.Unchecked += delegate {
+                _txtEcExe.IsEnabled = true;
+                _btnBrowseEc.IsEnabled = true;
+                UpdateEcStatus();
+            };
+            ecStack.Children.Add(_chkSkipEc);
+
+            ecCard.Child = ecStack;
+            body.Children.Add(ecCard);
 
             // Existing Settings Detection Card
             string appData = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "EffectCraft");
@@ -481,9 +698,31 @@ namespace CraftConsole.SetupModern
             this.Content = rootGrid;
         }
 
+        private void UpdateEcStatus()
+        {
+            if (_lblEcStatus == null || _txtEcExe == null) return;
+            string path = (_txtEcExe.Text ?? "").Trim();
+            if (!string.IsNullOrEmpty(path) && File.Exists(path))
+            {
+                _lblEcStatus.Text = "✓ Valid EffectCraft executable located: " + System.IO.Path.GetFileName(path);
+                _lblEcStatus.Foreground = new SolidColorBrush(Color.FromRgb(0, 220, 130));
+            }
+            else if (string.IsNullOrEmpty(path))
+            {
+                _lblEcStatus.Text = "No executable selected. Click Browse to select effectcraft.exe or check skip.";
+                _lblEcStatus.Foreground = new SolidColorBrush(Color.FromRgb(255, 170, 40));
+            }
+            else
+            {
+                _lblEcStatus.Text = "Specified file does not exist. Please browse for effectcraft.exe.";
+                _lblEcStatus.Foreground = new SolidColorBrush(Color.FromRgb(255, 100, 100));
+            }
+        }
+
         private void ExecuteInstall()
         {
             string targetDir = (_txtInstallDir.Text ?? "").Trim();
+            string ecExe = (_chkSkipEc != null && _chkSkipEc.IsChecked == true) ? null : (_txtEcExe != null ? (_txtEcExe.Text ?? "").Trim() : null);
             if (string.IsNullOrEmpty(targetDir))
             {
                 System.Windows.Forms.MessageBox.Show("Please choose a valid install directory.", "Setup", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Warning);
@@ -568,6 +807,12 @@ namespace CraftConsole.SetupModern
                         }
                     }));
 
+                    // Save selected EffectCraft path into splash.ini
+                    if (!string.IsNullOrEmpty(ecExe) && File.Exists(ecExe))
+                    {
+                        Program.SaveEffectCraftPathToIni(ecExe);
+                    }
+
                     // 4. Shortcuts
                     bool doUnified = false, doDesk = false, doStart = false, launch = false;
                     Dispatcher.Invoke(new Action(delegate {
@@ -577,7 +822,7 @@ namespace CraftConsole.SetupModern
                         launch = _chkLaunchAfter.IsChecked == true;
                     }));
 
-                    if (doUnified)
+                    if (doUnified && !string.IsNullOrEmpty(ecExe) && File.Exists(ecExe))
                     {
                         string desk = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
                         string lnk = System.IO.Path.Combine(desk, "EffectCraft (with Console).lnk");
